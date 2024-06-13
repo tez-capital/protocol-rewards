@@ -12,23 +12,6 @@ import (
 	"gorm.io/gorm"
 )
 
-type BalanceUpdate struct {
-	Kind   string `json:"kind"`
-	Change string `json:"change"`
-	// Other fields can be added if needed
-}
-
-type minDelegatedInCurrentCycle struct {
-	Amount string `json:"amount"`
-	Level  struct {
-		Level              int  `json:"level"`
-		LevelPosition      int  `json:"level_position"`
-		Cycle              int  `json:"cycle"`
-		CyclePosition      int  `json:"cycle_position"`
-		ExpectedCommitment bool `json:"expected_commitment"`
-	} `json:"level"`
-}
-
 func FetchDelegateData(delegateAddress string, db *gorm.DB, config *configuration.Runtime) error {
 	tezosSubsystemConfiguration, err := config.GetTezosConfiguration()
 	if err != nil {

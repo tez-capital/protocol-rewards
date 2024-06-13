@@ -3,12 +3,11 @@ package core
 import (
 	"context"
 	"errors"
-	"fmt"
-	"maps"
 	"net/http"
 	"slices"
 	"time"
 
+	"github.com/samber/lo"
 	"github.com/trilitech/tzgo/rpc"
 	"github.com/trilitech/tzgo/tezos"
 )
@@ -85,30 +84,31 @@ func (engine *DefaultRpcAndTzktColletor) GetDelegateStateFromCycle(ctx context.C
 	return engine.rpc.GetDelegate(ctx, delegateAddress, blockId)
 }
 
-func (engine *DefaultRpcAndTzktColletor) fetchDelegatorBalances(ctx context.Context, state *DelegationState, blockId rpc.BlockID) (totalBalance tezos.Z, err error) {
-	balance, err := engine.rpc.GetContractBalance(ctx, state.Delegate.Delegate, blockId)
-	if err != nil {
-		return tezos.Zero, err
+func (engine *DefaultRpcAndTzktColletor) fetchDelegationState(ctx context.Context, delegate *rpc.Delegate, blockId rpc.BlockID) (*DelegationState, error) {
+	state := &DelegationState{
+		Baker:        delegate.Delegate,
+		Balances:     make(map[tezos.Address]tezos.Z, len(delegate.DelegatedContracts)+1),
+		TotalBalance: tezos.Z{},
 	}
-	state.Balance = balance.Int64()
-	totalBalance = tezos.NewZ(state.FullBalance - state.CurrentFrozenDeposits)
 
-	//	totalBalance.Add64(state.CurrentFrozenDeposits)
+	state.Balances[delegate.Delegate] = tezos.NewZ(delegate.FullBalance - delegate.CurrentFrozenDeposits)
 
-	for _, address := range state.DelegatedContracts {
+	for _, address := range delegate.DelegatedContracts {
 		balance, err := engine.rpc.GetContractBalance(ctx, address, blockId)
 		if err != nil {
-			return tezos.Zero, err
+			return nil, err
 		}
-		state.DelegatorBalances[address] = balance
-		totalBalance = totalBalance.Add(balance)
+		state.Balances[address] = balance
 	}
 
-	return totalBalance, nil
+	state.TotalBalance = lo.Reduce(lo.Values(state.Balances), func(acc tezos.Z, balance tezos.Z, _ int) tezos.Z {
+		return acc.Add(balance)
+	}, state.TotalBalance)
+
+	return state, nil
 }
 
 func (engine *DefaultRpcAndTzktColletor) GetDelegationState(ctx context.Context, delegate *rpc.Delegate) (*DelegationState, error) {
-	fmt.Println(delegate.MinDelegated)
 	if delegate.MinDelegated.Level.Level == 0 {
 		return nil, errors.New("Delegate has no minimum delegated balance")
 	}
@@ -118,62 +118,69 @@ func (engine *DefaultRpcAndTzktColletor) GetDelegationState(ctx context.Context,
 		return nil, err
 	}
 
-	state := &DelegationState{
-		Delegate: delegate,
-
-		DelegatorBalances: make(map[tezos.Address]tezos.Z, len(delegate.DelegatedContracts)),
-	}
-
-	totalBalance, err := engine.fetchDelegatorBalances(ctx, state, rpc.BlockLevel(delegate.MinDelegated.Level.Level-1))
+	state, err := engine.fetchDelegationState(ctx, delegate, rpc.BlockLevel(delegate.MinDelegated.Level.Level-1))
 	if err != nil {
 		return nil, err
 	}
 
-	fmt.Println("total:", totalBalance)
-	//totalBalance = tezos.NewZ(297257208061)
-	balances := maps.Clone(state.DelegatorBalances)
-	balances[delegate.Delegate] = tezos.NewZ(state.Balance)
+	state.Cycle = delegate.MinDelegated.Level.Cycle
+	state.Level = delegate.MinDelegated.Level.Level
 
 	found := false
 
-	allBalanceUpdates := make([]rpc.BalanceUpdate, 0, len(blockWithMinimumBalance.Operations)*2 /* thats minimum of balance updates we expect*/)
+	allBalanceUpdates := make(ExtendedBalanceUpdates, 0, len(blockWithMinimumBalance.Operations)*2 /* thats minimum of balance updates we expect*/)
 	// block balance updates
-	allBalanceUpdates = append(allBalanceUpdates, blockWithMinimumBalance.Metadata.BalanceUpdates...)
+	allBalanceUpdates = allBalanceUpdates.AddBalanceUpdates(tezos.ZeroOpHash, -1, BlockBalanceUpdateSource, blockWithMinimumBalance.Metadata.BalanceUpdates...)
 
 	for _, batch := range blockWithMinimumBalance.Operations {
 		for _, operation := range batch {
 			// first op fees
-			for _, content := range operation.Contents {
-				allBalanceUpdates = append(allBalanceUpdates, content.Meta().BalanceUpdates...)
+			for transactionIndex, content := range operation.Contents {
+				allBalanceUpdates = allBalanceUpdates.AddBalanceUpdates(operation.Hash,
+					int64(transactionIndex),
+					TransactionMetadataBalanceUpdateSource,
+					content.Meta().BalanceUpdates...,
+				)
 			}
 			// then transfers
-			for _, content := range operation.Contents {
-				allBalanceUpdates = append(allBalanceUpdates, content.Result().BalanceUpdates...)
+			for transactionIndex, content := range operation.Contents {
+				allBalanceUpdates = allBalanceUpdates.AddBalanceUpdates(operation.Hash,
+					int64(transactionIndex),
+					TransactionContentsBalanceUpdateSource,
+					content.Result().BalanceUpdates...,
+				)
 
-				for _, internalResult := range content.Meta().InternalResults {
+				for internalResultIndex, internalResult := range content.Meta().InternalResults {
 					slices.Reverse(internalResult.Result.BalanceUpdates)
-					allBalanceUpdates = append(allBalanceUpdates, internalResult.Result.BalanceUpdates...)
+					allBalanceUpdates = allBalanceUpdates.AddInternalResultBalanceUpdates(operation.Hash,
+						state.Index,
+						int64(internalResultIndex),
+						internalResult.Result.BalanceUpdates...,
+					)
 				}
 			}
 
 		}
 	}
 
-	for _, balanceUpdate := range allBalanceUpdates {
-		if totalBalance.Int64() == state.MinDelegated.Amount {
-			found = true
-			break
-		}
+	targetAmount := delegate.MinDelegated.Amount
 
-		if _, found := balances[balanceUpdate.Address()]; !found {
+	for _, balanceUpdate := range allBalanceUpdates {
+		if _, found := state.Balances[balanceUpdate.Address()]; !found {
 			continue
 		}
 
-		fmt.Println(balanceUpdate.Address())
-		fmt.Println("total:", totalBalance, "expected:", state.MinDelegated.Amount, totalBalance.Int64()-state.MinDelegated.Amount)
-		fmt.Println("change:", balanceUpdate.Amount())
-		balances[balanceUpdate.Address()] = balances[balanceUpdate.Address()].Add64(balanceUpdate.Amount())
-		totalBalance = totalBalance.Add64(balanceUpdate.Amount())
+		state.Balances[balanceUpdate.Address()] = state.Balances[balanceUpdate.Address()].Add64(balanceUpdate.Amount())
+		state.TotalBalance = state.TotalBalance.Add64(balanceUpdate.Amount())
+
+		if state.TotalBalance.Int64() == targetAmount {
+			found = true
+			state.Operation = balanceUpdate.Operation
+			state.Index = balanceUpdate.Index
+			state.InternalIndex = balanceUpdate.InternalIndex
+			state.Source = balanceUpdate.Source
+			break
+		}
 	}
 
 	if !found {
