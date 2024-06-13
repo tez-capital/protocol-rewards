@@ -1,31 +1,34 @@
 package main
 
 import (
+	"flag"
+
 	"github.com/gofiber/fiber/v2"
+	"github.com/tez-capital/ogun/configuration"
 	"github.com/tez-capital/ogun/core"
 	"github.com/tez-capital/ogun/store"
 )
 
-type databaseConfiguration struct {
-	host     string
-	port     string
-	user     string
-	password string
-	database string
-}
-
 func main() {
-	config := databaseConfiguration{
-		host:     "127.0.0.1",
-		port:     "5432",
-		user:     "tezwatch1",
-		password: "tezwatch1",
-		database: "tezwatch1",
+
+	configPath := flag.String("config", "config.hjson", "path to the configuration file")
+
+	flag.Parse()
+
+	config, err := configuration.LoadConfiguration(*configPath)
+	if err != nil {
+		panic(err)
 	}
 
 	app := fiber.New()
 
-	store.ConnectDatabase(config.host, config.user, config.password, config.database, config.port)
+	store.ConnectDatabase(
+		config.Database.Host,
+		config.Database.User,
+		config.Database.Password,
+		config.Database.Database,
+		config.Database.Port,
+	)
 
 	app.Get("/delegate/:address", func(c *fiber.Ctx) error {
 		address := c.Params("address")
@@ -43,7 +46,7 @@ func main() {
 	app.Get("/fetch/:address", func(c *fiber.Ctx) error {
 		address := c.Params("address")
 
-		if err := core.FetchDelegateData(address, store.DB); err != nil {
+		if err := core.FetchDelegateData(address, store.DB, config); err != nil {
 			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
 				"error": err.Error(),
 			})

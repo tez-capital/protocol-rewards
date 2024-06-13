@@ -3,12 +3,14 @@ package core
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"os"
 	"os/signal"
 	"syscall"
 
+	"github.com/tez-capital/ogun/configuration"
 	"github.com/trilitech/tzgo/rpc"
 	"gorm.io/gorm"
 )
@@ -30,8 +32,17 @@ type minDelegatedInCurrentCycle struct {
 	} `json:"level"`
 }
 
-func FetchDelegateData(delegateAddress string, db *gorm.DB) error {
-	minBalanceUrl := fmt.Sprintf("https://rpc.tzkt.io/mainnet/chains/main/blocks/head/context/delegates/%s/min_delegated_in_current_cycle", delegateAddress)
+func FetchDelegateData(delegateAddress string, db *gorm.DB, config *configuration.Runtime) error {
+	tezosSubsystemConfiguration, err := config.GetTezosConfiguration()
+	if err != nil {
+		return err
+	}
+
+	if len(tezosSubsystemConfiguration.Providers) == 0 {
+		return errors.New("no valid rpc available")
+	}
+
+	minBalanceUrl := fmt.Sprintf("%schains/main/blocks/head/context/delegates/%s/min_delegated_in_current_cycle", tezosSubsystemConfiguration.Providers[0], delegateAddress)
 
 	resp, err := http.Get(minBalanceUrl)
 	if err != nil {
@@ -44,7 +55,7 @@ func FetchDelegateData(delegateAddress string, db *gorm.DB) error {
 		return fmt.Errorf("failed to decode min delegated balance response: %w", err)
 	}
 
-	client, err := rpc.NewClient("https://rpc.tzkt.io/mainnet", nil)
+	client, err := rpc.NewClient(tezosSubsystemConfiguration.Providers[0], nil)
 	if err != nil {
 		return err
 	}
