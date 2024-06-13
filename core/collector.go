@@ -73,7 +73,7 @@ func (engine *DefaultRpcAndTzktColletor) GetLastCompletedCycle() (int64, error) 
 
 func (engine *DefaultRpcAndTzktColletor) determineLastBlockOfCycle(ctx context.Context, cycle int64) (rpc.BlockID, error) {
 	// TODO:
-	return rpc.BlockLevel(5777369), nil
+	return rpc.BlockLevel(5777367), nil
 }
 
 func (engine *DefaultRpcAndTzktColletor) GetDelegateStateFromCycle(ctx context.Context, cycle int64, delegateAddress tezos.Address) (*rpc.Delegate, error) {
@@ -135,16 +135,19 @@ func (engine *DefaultRpcAndTzktColletor) GetDelegationState(ctx context.Context,
 	balances[delegate.Delegate] = tezos.NewZ(state.Balance)
 
 	found := false
-	// TODO:
-	// there is still small discrepancy between the total balance and the expected balance
 
 	allBalanceUpdates := make([]rpc.BalanceUpdate, 0, len(blockWithMinimumBalance.Operations)*2 /* thats minimum of balance updates we expect*/)
+	// block balance updates
 	allBalanceUpdates = append(allBalanceUpdates, blockWithMinimumBalance.Metadata.BalanceUpdates...)
 
 	for _, batch := range blockWithMinimumBalance.Operations {
 		for _, operation := range batch {
+			// first op fees
 			for _, content := range operation.Contents {
 				allBalanceUpdates = append(allBalanceUpdates, content.Meta().BalanceUpdates...)
+			}
+			// then transfers
+			for _, content := range operation.Contents {
 				allBalanceUpdates = append(allBalanceUpdates, content.Result().BalanceUpdates...)
 
 				for _, internalResult := range content.Meta().InternalResults {
@@ -152,6 +155,7 @@ func (engine *DefaultRpcAndTzktColletor) GetDelegationState(ctx context.Context,
 					allBalanceUpdates = append(allBalanceUpdates, internalResult.Result.BalanceUpdates...)
 				}
 			}
+
 		}
 	}
 
