@@ -23,7 +23,7 @@ func FetchDelegateData(delegateAddress string, db *gorm.DB, config *configuratio
 	}
 
 	rpcUrl := "https://eu.rpc.tez.capital/"
-	collector, err := InitDefaultRpcAndTzktCollector(rpcUrl)
+	collector, err := InitDefaultRpcCollector(rpcUrl)
 	if err != nil {
 		slog.Error("failed to initialize collector", "error", err)
 		return err

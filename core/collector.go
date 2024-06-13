@@ -12,17 +12,17 @@ import (
 	"github.com/trilitech/tzgo/tezos"
 )
 
-type DefaultRpcAndTzktCollector struct {
+type DefaultRpcCollector struct {
 	rpcUrl string
 	rpc    *rpc.Client
-	//tzkt *tzkt.Client
 }
 
 var (
 	defaultCtx context.Context = context.Background()
 )
 
-func InitDefaultRpcAndTzktCollector(rpcUrl string) (*DefaultRpcAndTzktCollector, error) {
+func InitDefaultRpcCollector(rpcUrl string) (*DefaultRpcCollector, error) {
+
 	client := http.Client{
 		Timeout: 10 * time.Second,
 	}
@@ -30,8 +30,9 @@ func InitDefaultRpcAndTzktCollector(rpcUrl string) (*DefaultRpcAndTzktCollector,
 	if err != nil {
 		return nil, err
 	}
+	rpcClient.Init(defaultCtx)
 
-	result := &DefaultRpcAndTzktCollector{
+	result := &DefaultRpcCollector{
 		rpcUrl: rpcUrl,
 		rpc:    rpcClient,
 	}
@@ -39,15 +40,15 @@ func InitDefaultRpcAndTzktCollector(rpcUrl string) (*DefaultRpcAndTzktCollector,
 	return result, result.RefreshParams()
 }
 
-func (engine *DefaultRpcAndTzktCollector) GetId() string {
-	return "DefaultRpcAndTzktColletor"
+func (engine *DefaultRpcCollector) GetId() string {
+	return "DefaultRpcAndTzktCollector"
 }
 
-func (engine *DefaultRpcAndTzktCollector) RefreshParams() error {
+func (engine *DefaultRpcCollector) RefreshParams() error {
 	return engine.rpc.Init(context.Background())
 }
 
-func (engine *DefaultRpcAndTzktCollector) GetCurrentProtocol() (tezos.ProtocolHash, error) {
+func (engine *DefaultRpcCollector) GetCurrentProtocol() (tezos.ProtocolHash, error) {
 	params, err := engine.rpc.GetParams(context.Background(), rpc.Head)
 
 	if err != nil {
@@ -56,7 +57,7 @@ func (engine *DefaultRpcAndTzktCollector) GetCurrentProtocol() (tezos.ProtocolHa
 	return params.Protocol, nil
 }
 
-func (engine *DefaultRpcAndTzktCollector) GetCurrentCycleNumber() (int64, error) {
+func (engine *DefaultRpcCollector) GetCurrentCycleNumber() (int64, error) {
 	head, err := engine.rpc.GetHeadBlock(defaultCtx)
 	if err != nil {
 		return 0, err
@@ -65,26 +66,33 @@ func (engine *DefaultRpcAndTzktCollector) GetCurrentCycleNumber() (int64, error)
 	return head.GetLevelInfo().Cycle, err
 }
 
-func (engine *DefaultRpcAndTzktCollector) GetLastCompletedCycle() (int64, error) {
+func (engine *DefaultRpcCollector) GetLastCompletedCycle() (int64, error) {
 	cycle, err := engine.GetCurrentCycleNumber()
 	return cycle - 1, err
 }
 
-func (engine *DefaultRpcAndTzktCollector) determineLastBlockOfCycle(ctx context.Context, cycle int64) (rpc.BlockID, error) {
-	// TODO:
-	return rpc.BlockLevel(5777367), nil
+func (engine *DefaultRpcCollector) determineLastBlockOfCycle(cycle int64) rpc.BlockID {
+	height := engine.rpc.Params.CycleEndHeight(cycle)
+	return rpc.BlockLevel(height)
 }
 
-func (engine *DefaultRpcAndTzktCollector) GetDelegateStateFromCycle(ctx context.Context, cycle int64, delegateAddress tezos.Address) (*rpc.Delegate, error) {
-	blockId, err := engine.determineLastBlockOfCycle(ctx, cycle)
+func (engine *DefaultRpcCollector) GetActiveDelegatesFromCycle(ctx context.Context, cycle int64) (rpc.DelegateList, error) {
+	id := engine.determineLastBlockOfCycle(cycle)
+	dl, err := engine.rpc.ListActiveDelegates(ctx, id)
 	if err != nil {
 		return nil, err
 	}
 
+	return dl, nil
+}
+
+func (engine *DefaultRpcCollector) GetDelegateStateFromCycle(ctx context.Context, cycle int64, delegateAddress tezos.Address) (*rpc.Delegate, error) {
+	blockId := engine.determineLastBlockOfCycle(cycle)
+
 	return engine.rpc.GetDelegate(ctx, delegateAddress, blockId)
 }
 
-func (engine *DefaultRpcAndTzktCollector) fetchDelegationState(ctx context.Context, delegate *rpc.Delegate, blockId rpc.BlockID) (*DelegationState, error) {
+func (engine *DefaultRpcCollector) fetchDelegationState(ctx context.Context, delegate *rpc.Delegate, blockId rpc.BlockID) (*DelegationState, error) {
 	state := &DelegationState{
 		Baker:        delegate.Delegate,
 		Balances:     make(map[tezos.Address]tezos.Z, len(delegate.DelegatedContracts)+1),
@@ -108,7 +116,7 @@ func (engine *DefaultRpcAndTzktCollector) fetchDelegationState(ctx context.Conte
 	return state, nil
 }
 
-func (engine *DefaultRpcAndTzktCollector) GetDelegationState(ctx context.Context, delegate *rpc.Delegate) (*DelegationState, error) {
+func (engine *DefaultRpcCollector) GetDelegationState(ctx context.Context, delegate *rpc.Delegate) (*DelegationState, error) {
 	if delegate.MinDelegated.Level.Level == 0 {
 		return nil, errors.New("delegate has no minimum delegated balance")
 	}
