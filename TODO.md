@@ -2,6 +2,7 @@
   - [ ] fetch last completed cycle
   - [ ] fetch all delegates of specific cycle
     - [ ] make fetching parallel in batches, configurable batch size
+      - NOTE: this would be done with channels and go routines
   - [ ] fetch states of all delegates of specific cycle
   - [ ] persists stats into database
 
