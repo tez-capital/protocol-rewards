@@ -5,13 +5,10 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"net/http"
-	"os"
-	"os/signal"
-	"syscall"
+	"log/slog"
 
 	"github.com/tez-capital/ogun/configuration"
-	"github.com/trilitech/tzgo/rpc"
+	"github.com/trilitech/tzgo/tezos"
 	"gorm.io/gorm"
 )
 
@@ -42,38 +39,33 @@ func FetchDelegateData(delegateAddress string, db *gorm.DB, config *configuratio
 		return errors.New("no valid rpc available")
 	}
 
-	minBalanceUrl := fmt.Sprintf("%schains/main/blocks/head/context/delegates/%s/min_delegated_in_current_cycle", tezosSubsystemConfiguration.Providers[0], delegateAddress)
-
-	resp, err := http.Get(minBalanceUrl)
+	rpcUrl := "https://eu.rpc.tez.capital/"
+	collector, err := InitDefaultRpcAndTzktColletor(rpcUrl)
 	if err != nil {
-		return fmt.Errorf("failed to fetch min delegated balance: %w", err)
-	}
-	defer resp.Body.Close()
-
-	var minDelegatedObject minDelegatedInCurrentCycle
-	if err := json.NewDecoder(resp.Body).Decode(&minDelegatedObject); err != nil {
-		return fmt.Errorf("failed to decode min delegated balance response: %w", err)
-	}
-
-	client, err := rpc.NewClient(tezosSubsystemConfiguration.Providers[0], nil)
-	if err != nil {
+		slog.Error("failed to initialize collector", "error", err.Error())
 		return err
 	}
 
-	ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM, os.Interrupt)
+	ctx := context.Background()
 
-	// Fetch the block details using tzgo
-	headBlock, err := client.GetHeadBlock(ctx)
+	delegate, err := collector.GetDelegateStateFromCycle(ctx, 1, tezos.MustParseAddress(delegateAddress))
 	if err != nil {
-		return fmt.Errorf("failed to fetch previous block: %w", err)
+		slog.Error("failed to fetch delegate state", "error", err.Error())
+		return err
 	}
 
-	fmt.Println(headBlock)
+	// d, err := json.MarshalIndent(delegate, "", "\t")
+	// fmt.Println(string(d))
+	// os.Exit(0)
 
-	// Insert or update data in the database
-	// db.Save(&models.Delegate{...})
-
-	cancel()
+	slog.Info("getting delegation state")
+	state, err := collector.GetDelegationState(ctx, delegate)
+	if err != nil {
+		slog.Error("failed to fetch delegation state", "error", err.Error())
+		return err
+	}
+	result, err := json.MarshalIndent(state, "", "\t")
+	fmt.Println(string(result))
 	return nil
 
 }
