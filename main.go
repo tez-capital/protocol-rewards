@@ -55,5 +55,5 @@ func main() {
 		return c.SendStatus(fiber.StatusOK)
 	})
 
-	app.Listen(":3000")
+	app.Listen(config.Listen[0])
 }
