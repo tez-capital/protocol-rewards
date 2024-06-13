@@ -23,9 +23,9 @@ func FetchDelegateData(delegateAddress string, db *gorm.DB, config *configuratio
 	}
 
 	rpcUrl := "https://eu.rpc.tez.capital/"
-	collector, err := InitDefaultRpcAndTzktColletor(rpcUrl)
+	collector, err := InitDefaultRpcAndTzktCollector(rpcUrl)
 	if err != nil {
-		slog.Error("failed to initialize collector", "error", err.Error())
+		slog.Error("failed to initialize collector", "error", err)
 		return err
 	}
 
@@ -33,7 +33,7 @@ func FetchDelegateData(delegateAddress string, db *gorm.DB, config *configuratio
 
 	delegate, err := collector.GetDelegateStateFromCycle(ctx, 1, tezos.MustParseAddress(delegateAddress))
 	if err != nil {
-		slog.Error("failed to fetch delegate state", "error", err.Error())
+		slog.Error("failed to fetch delegate state", "error", err)
 		return err
 	}
 
@@ -44,10 +44,14 @@ func FetchDelegateData(delegateAddress string, db *gorm.DB, config *configuratio
 	slog.Info("getting delegation state")
 	state, err := collector.GetDelegationState(ctx, delegate)
 	if err != nil {
-		slog.Error("failed to fetch delegation state", "error", err.Error())
+		slog.Error("failed to fetch delegation state", "error", err)
 		return err
 	}
 	result, err := json.MarshalIndent(state, "", "\t")
+	if err != nil {
+		slog.Error("failed to marshal delegation state", "error", err)
+		return err
+	}
 	fmt.Println(string(result))
 	return nil
 

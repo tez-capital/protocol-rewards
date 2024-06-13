@@ -5,6 +5,7 @@ go 1.22.4
 require (
 	github.com/gofiber/fiber/v2 v2.52.4
 	github.com/hjson/hjson-go/v4 v4.4.0
+	github.com/samber/lo v1.39.0
 	github.com/trilitech/tzgo v1.19.5
 	gorm.io/driver/postgres v1.5.9
 	gorm.io/gorm v1.25.10
@@ -29,7 +30,6 @@ require (
 	github.com/mattn/go-isatty v0.0.20 // indirect
 	github.com/mattn/go-runewidth v0.0.15 // indirect
 	github.com/rivo/uniseg v0.4.7 // indirect
-	github.com/samber/lo v1.39.0 // indirect
 	github.com/valyala/bytebufferpool v1.0.0 // indirect
 	github.com/valyala/fasthttp v1.54.0 // indirect
 	github.com/valyala/tcplisten v1.0.0 // indirect
