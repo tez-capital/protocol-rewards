@@ -32,11 +32,12 @@ type ConnectConfiguration struct {
 }
 
 type Runtime struct {
-	Environment string                     `json:"environment"`
-	Subsystems  map[string]json.RawMessage `json:"subsystems"`
-	Database    DatabaseConfiguration      `json:"database"`
-	Listen      []string                   `json:"listen"`
-	BatchSize   int                        `json:"batch_size"`
+	Environment              string                     `json:"environment"`
+	Subsystems               map[string]json.RawMessage `json:"subsystems"`
+	Database                 DatabaseConfiguration      `json:"database"`
+	Listen                   []string                   `json:"listen"`
+	BatchSize                int                        `json:"batch_size"`
+	AllowManualCycleFetching bool                       `json:"allow_manual_cycle_fetching"`
 }
 
 func LoadConfiguration(path string) (*Runtime, error) {

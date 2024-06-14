@@ -11,8 +11,8 @@
 - [ ] api 
   - [ ]  provide https://api.tzkt.io/v1/rewards/split/{baker}/{cycle}
 	- NOTE: mirrors https://api.tzkt.io/#operation/Rewards_GetRewardSplit
-  - [ ] api to manually trigger fetching of cycle
-    - [ ] allow enable/disable from config
+  - [x] api to manually trigger fetching of cycle
+    - [x] allow enable/disable from config
   - [ ] provide status api
     - [ ] last available cycle
   - [ ] for data not available return 404 not found 

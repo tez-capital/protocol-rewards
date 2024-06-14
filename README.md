@@ -23,5 +23,6 @@ config.hjson
       database: tezwatch1
    }
    batch_size: 5
+   allow_manual_cycle_fetching: true
 }
 ```

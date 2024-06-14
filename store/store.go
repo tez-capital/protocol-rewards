@@ -32,7 +32,7 @@ func ConnectDatabase(host, user, pass, database, port string) {
 	DB = db
 }
 
-func StoreDelegatesStates(records *DelegationState) error {
+func StoreDelegatesStates(records []*DelegationState) error {
 	if err := DB.Create(&records).Error; err != nil {
 		return fmt.Errorf("error saving delegates to database: %v", err)
 	}
