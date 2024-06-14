@@ -12,7 +12,7 @@
   - [ ]  provide https://api.tzkt.io/v1/rewards/split/{baker}/{cycle}
 	- NOTE: mirrors https://api.tzkt.io/#operation/Rewards_GetRewardSplit
   - [ ] api to manually trigger fetching of cycle
-    - [ ] disablable from config
+    - [ ] allow enable/disable from config
   - [ ] provide status api
     - [ ] last available cycle
   - [ ] for data not available return 404 not found 
@@ -29,3 +29,29 @@
     - NOTE: we can detect it by checking that reported delegate.MinDelegated.Level.Level is 0
       right now it returns error, we should probably return specific error and handle properly
 	  this is viable only for cycles above 744
+
+config.hjson
+```hjson
+{
+   environment: development
+   listen: [
+      127.0.0.1:3000
+   ]
+   subsystems: {
+      tezos: {
+         providers: [
+            https://rpc.tzkt.io/mainnet/
+         ]
+         number_of_active_providers: 2
+      }
+   }
+   database: {
+      host: 127.0.0.1
+      port: 5432
+      user: tezwatch1
+      password: tezwatch1
+      database: tezwatch1
+   }
+   batch_size: 5
+}
+```
