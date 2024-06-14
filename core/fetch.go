@@ -8,6 +8,7 @@ import (
 	"sync"
 
 	"github.com/tez-capital/ogun/configuration"
+	"github.com/tez-capital/ogun/store"
 	"github.com/trilitech/tzgo/rpc"
 	"github.com/trilitech/tzgo/tezos"
 	"gorm.io/gorm"
@@ -111,14 +112,14 @@ func FetchAllDelegatesFromCycle(cycle int64, config *configuration.Runtime) ([]*
 		}
 	}
 
-	for _, v := range results {
-		fmt.Println(*v)
-	}
+	// for _, v := range results {
+	// 	fmt.Println(*v)
+	// }
 
 	return results, nil
 }
 
-func FetchAllDelegatesStatesFromCycle(cycle int64, config *configuration.Runtime) ([]*DelegationState, error) {
+func FetchAllDelegatesStatesFromCycle(cycle int64, config *configuration.Runtime) ([]*store.DelegationState, error) {
 	collector, err := getCollector(config)
 	if err != nil {
 		return nil, err
@@ -131,9 +132,10 @@ func FetchAllDelegatesStatesFromCycle(cycle int64, config *configuration.Runtime
 	}
 
 	numDelegates := len(delegates)
-	results := make([]*DelegationState, numDelegates)
+	records := make([]*store.DelegationState, 0, numDelegates)
 	errs := make([]error, numDelegates)
 	var wg sync.WaitGroup
+	var mu sync.Mutex
 
 	sem := make(chan struct{}, config.BatchSize)
 
@@ -151,7 +153,9 @@ func FetchAllDelegatesStatesFromCycle(cycle int64, config *configuration.Runtime
 				errs[i] = err
 				return
 			}
-			results[i] = delegateState
+			mu.Lock()
+			records = append(records, delegateState)
+			mu.Unlock()
 		}(i, delegate)
 	}
 
@@ -163,9 +167,9 @@ func FetchAllDelegatesStatesFromCycle(cycle int64, config *configuration.Runtime
 		}
 	}
 
-	for _, v := range results {
-		fmt.Println(*v)
-	}
+	// for _, v := range records {
+	// 	fmt.Println(*v)
+	// }
 
-	return results, nil
+	return records, nil
 }

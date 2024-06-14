@@ -6,7 +6,7 @@
   - [x] fetch states of all delegates of specific cycle
       - [x] make fetching parallel in batches, configurable batch size (it is done with same batch_size as the one above at the moment, if we need different sizes we should adjust config)
       - NOTE: this would be done with channels and go routines
-  - [ ] persists stats into database
+  - [x] persists stats into database
 
 - [ ] api 
   - [ ]  provide https://api.tzkt.io/v1/rewards/split/{baker}/{cycle}

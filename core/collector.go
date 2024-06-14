@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/samber/lo"
+	"github.com/tez-capital/ogun/store"
 	"github.com/trilitech/tzgo/rpc"
 	"github.com/trilitech/tzgo/tezos"
 )
@@ -92,8 +93,8 @@ func (engine *DefaultRpcCollector) GetDelegateFromCycle(ctx context.Context, cyc
 	return engine.rpc.GetDelegate(ctx, delegateAddress, blockId)
 }
 
-func (engine *DefaultRpcCollector) fetchDelegationState(ctx context.Context, delegate *rpc.Delegate, blockId rpc.BlockID) (*DelegationState, error) {
-	state := &DelegationState{
+func (engine *DefaultRpcCollector) fetchDelegationState(ctx context.Context, delegate *rpc.Delegate, blockId rpc.BlockID) (*store.DelegationState, error) {
+	state := &store.DelegationState{
 		Baker:        delegate.Delegate,
 		Balances:     make(map[tezos.Address]tezos.Z, len(delegate.DelegatedContracts)+1),
 		TotalBalance: tezos.Z{},
@@ -116,7 +117,7 @@ func (engine *DefaultRpcCollector) fetchDelegationState(ctx context.Context, del
 	return state, nil
 }
 
-func (engine *DefaultRpcCollector) GetDelegationState(ctx context.Context, delegate *rpc.Delegate) (*DelegationState, error) {
+func (engine *DefaultRpcCollector) GetDelegationState(ctx context.Context, delegate *rpc.Delegate) (*store.DelegationState, error) {
 	if delegate.MinDelegated.Level.Level == 0 {
 		return nil, errors.New("delegate has no minimum delegated balance")
 	}
@@ -159,6 +160,7 @@ func (engine *DefaultRpcCollector) GetDelegationState(ctx context.Context, deleg
 				)
 
 				for internalResultIndex, internalResult := range content.Meta().InternalResults {
+					// TODO: check this
 					slices.Reverse(internalResult.Result.BalanceUpdates)
 					allBalanceUpdates = allBalanceUpdates.AddInternalResultBalanceUpdates(operation.Hash,
 						state.Index,
@@ -180,8 +182,8 @@ func (engine *DefaultRpcCollector) GetDelegationState(ctx context.Context, deleg
 
 		state.Balances[balanceUpdate.Address()] = state.Balances[balanceUpdate.Address()].Add64(balanceUpdate.Amount())
 		state.TotalBalance = state.TotalBalance.Add64(balanceUpdate.Amount())
-
-		if state.TotalBalance.Int64() == targetAmount {
+		// TODO: check this == sign here
+		if state.TotalBalance.Int64() >= targetAmount {
 			found = true
 			state.Operation = balanceUpdate.Operation
 			state.Index = balanceUpdate.Index

@@ -22,7 +22,7 @@ func main() {
 	}
 
 	if *isTest {
-		core.FetchDelegateData("tz1UNkf4sWzC5vsKP7FnejSeJsXdc6z8Kzk4", nil, config)
+		core.FetchDelegateData("tz1KeWN4euqRoFg9cuNRoycArm9Ewz1Hsamc", nil, config)
 		core.FetchAllDelegatesFromCycle(int64(745), config)
 		core.FetchAllDelegatesStatesFromCycle(int64(745), config)
 		return
@@ -38,30 +38,30 @@ func main() {
 		config.Database.Port,
 	)
 
-	app.Get("/delegate/:address", func(c *fiber.Ctx) error {
-		address := c.Params("address")
+	// app.Get("/delegate/:address", func(c *fiber.Ctx) error {
+	// 	address := c.Params("address")
 
-		var delegate store.Delegate
-		if err := store.DB.Where("address = ?", address).First(&delegate).Error; err != nil {
-			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
-				"error": "Delegate with address " + address + " not found",
-			})
-		}
+	// 	var delegate store.Delegate
+	// 	if err := store.DB.Where("address = ?", address).First(&delegate).Error; err != nil {
+	// 		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
+	// 			"error": "Delegate with address " + address + " not found",
+	// 		})
+	// 	}
 
-		return c.JSON(delegate)
-	})
+	// 	return c.JSON(delegate)
+	// })
 
-	app.Get("/fetch/:address", func(c *fiber.Ctx) error {
-		address := c.Params("address")
+	// app.Get("/fetch/:address", func(c *fiber.Ctx) error {
+	// 	address := c.Params("address")
 
-		if err := core.FetchDelegateData(address, store.DB, config); err != nil {
-			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-				"error": err.Error(),
-			})
-		}
+	// 	if err := core.FetchDelegateData(address, store.DB, config); err != nil {
+	// 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+	// 			"error": err.Error(),
+	// 		})
+	// 	}
 
-		return c.SendStatus(fiber.StatusOK)
-	})
+	// 	return c.SendStatus(fiber.StatusOK)
+	// })
 
 	app.Listen(config.Listen[0])
 }
