@@ -35,7 +35,8 @@ type Runtime struct {
 	Environment string                     `json:"environment"`
 	Subsystems  map[string]json.RawMessage `json:"subsystems"`
 	Database    DatabaseConfiguration      `json:"database"`
-	Listen      []string                   `json:"listen,omitempty"`
+	Listen      []string                   `json:"listen"`
+	BatchSize   int                        `json:"batch_size"`
 }
 
 func LoadConfiguration(path string) (*Runtime, error) {

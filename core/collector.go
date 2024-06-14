@@ -57,8 +57,8 @@ func (engine *DefaultRpcCollector) GetCurrentProtocol() (tezos.ProtocolHash, err
 	return params.Protocol, nil
 }
 
-func (engine *DefaultRpcCollector) GetCurrentCycleNumber() (int64, error) {
-	head, err := engine.rpc.GetHeadBlock(defaultCtx)
+func (engine *DefaultRpcCollector) GetCurrentCycleNumber(ctx context.Context) (int64, error) {
+	head, err := engine.rpc.GetHeadBlock(ctx)
 	if err != nil {
 		return 0, err
 	}
@@ -66,8 +66,8 @@ func (engine *DefaultRpcCollector) GetCurrentCycleNumber() (int64, error) {
 	return head.GetLevelInfo().Cycle, err
 }
 
-func (engine *DefaultRpcCollector) GetLastCompletedCycle() (int64, error) {
-	cycle, err := engine.GetCurrentCycleNumber()
+func (engine *DefaultRpcCollector) GetLastCompletedCycle(ctx context.Context) (int64, error) {
+	cycle, err := engine.GetCurrentCycleNumber(ctx)
 	return cycle - 1, err
 }
 
@@ -86,7 +86,7 @@ func (engine *DefaultRpcCollector) GetActiveDelegatesFromCycle(ctx context.Conte
 	return dl, nil
 }
 
-func (engine *DefaultRpcCollector) GetDelegateStateFromCycle(ctx context.Context, cycle int64, delegateAddress tezos.Address) (*rpc.Delegate, error) {
+func (engine *DefaultRpcCollector) GetDelegateFromCycle(ctx context.Context, cycle int64, delegateAddress tezos.Address) (*rpc.Delegate, error) {
 	blockId := engine.determineLastBlockOfCycle(cycle)
 
 	return engine.rpc.GetDelegate(ctx, delegateAddress, blockId)

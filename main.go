@@ -23,6 +23,8 @@ func main() {
 
 	if *isTest {
 		core.FetchDelegateData("tz1UNkf4sWzC5vsKP7FnejSeJsXdc6z8Kzk4", nil, config)
+		core.FetchAllDelegatesFromCycle(int64(745), config)
+		core.FetchAllDelegatesStatesFromCycle(int64(745), config)
 		return
 	}
 
