@@ -3,8 +3,8 @@ package core
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net/http"
-	"slices"
 	"time"
 
 	"github.com/samber/lo"
@@ -79,12 +79,13 @@ func (engine *DefaultRpcCollector) determineLastBlockOfCycle(cycle int64) rpc.Bl
 
 func (engine *DefaultRpcCollector) GetActiveDelegatesFromCycle(ctx context.Context, cycle int64) (rpc.DelegateList, error) {
 	id := engine.determineLastBlockOfCycle(cycle)
-	dl, err := engine.rpc.ListActiveDelegates(ctx, id)
-	if err != nil {
+	selector := "active=true"
+	delegates := make(rpc.DelegateList, 0)
+	u := fmt.Sprintf("chains/main/blocks/%s/context/delegates?%s", id, selector)
+	if err := engine.rpc.Get(ctx, u, &delegates); err != nil {
 		return nil, err
 	}
-
-	return dl, nil
+	return delegates, nil
 }
 
 func (engine *DefaultRpcCollector) GetDelegateFromCycle(ctx context.Context, cycle int64, delegateAddress tezos.Address) (*rpc.Delegate, error) {
@@ -94,16 +95,30 @@ func (engine *DefaultRpcCollector) GetDelegateFromCycle(ctx context.Context, cyc
 }
 
 func (engine *DefaultRpcCollector) fetchDelegationState(ctx context.Context, delegate *rpc.Delegate, blockId rpc.BlockID) (*store.DelegationState, error) {
+	previousBlockId := rpc.NewBlockOffset(blockId, -1)
+
+	delegate, err := engine.rpc.GetDelegate(ctx, delegate.Delegate, blockId)
+	if err != nil {
+		return nil, err
+	}
+
+	delegateBalance := tezos.NewZ(delegate.FullBalance - delegate.CurrentFrozenDeposits)
+
+	delegate, err = engine.rpc.GetDelegate(ctx, delegate.Delegate, previousBlockId)
+	if err != nil {
+		return nil, err
+	}
+
 	state := &store.DelegationState{
 		Baker:        delegate.Delegate,
 		Balances:     make(map[tezos.Address]tezos.Z, len(delegate.DelegatedContracts)+1),
 		TotalBalance: tezos.Z{},
 	}
 
-	state.Balances[delegate.Delegate] = tezos.NewZ(delegate.FullBalance - delegate.CurrentFrozenDeposits)
+	state.Balances[delegate.Delegate] = delegateBalance
 
 	for _, address := range delegate.DelegatedContracts {
-		balance, err := engine.rpc.GetContractBalance(ctx, address, blockId)
+		balance, err := engine.rpc.GetContractBalance(ctx, address, previousBlockId)
 		if err != nil {
 			return nil, err
 		}
@@ -121,19 +136,27 @@ func (engine *DefaultRpcCollector) GetDelegationState(ctx context.Context, deleg
 	if delegate.MinDelegated.Level.Level == 0 {
 		return nil, errors.New("delegate has no minimum delegated balance")
 	}
+	fmt.Println(delegate.MinDelegated)
 
 	blockWithMinimumBalance, err := engine.rpc.GetBlock(ctx, rpc.BlockLevel(delegate.MinDelegated.Level.Level))
 	if err != nil {
 		return nil, err
 	}
 
-	state, err := engine.fetchDelegationState(ctx, delegate, rpc.BlockLevel(delegate.MinDelegated.Level.Level-1))
+	state, err := engine.fetchDelegationState(ctx, delegate, rpc.BlockLevel(delegate.MinDelegated.Level.Level))
 	if err != nil {
 		return nil, err
 	}
 
 	state.Cycle = delegate.MinDelegated.Level.Cycle
 	state.Level = delegate.MinDelegated.Level.Level
+	targetAmount := delegate.MinDelegated.Amount
+
+	// we may match at the beginning of the block, we do not have to further process
+	if state.TotalBalance.Int64() == targetAmount {
+		state.Source = NoneBalanceUpdateSource
+		return state, nil
+	}
 
 	found := false
 
@@ -142,6 +165,7 @@ func (engine *DefaultRpcCollector) GetDelegationState(ctx context.Context, deleg
 	allBalanceUpdates = allBalanceUpdates.AddBalanceUpdates(tezos.ZeroOpHash, -1, BlockBalanceUpdateSource, blockWithMinimumBalance.Metadata.BalanceUpdates...)
 
 	for _, batch := range blockWithMinimumBalance.Operations {
+
 		for _, operation := range batch {
 			// first op fees
 			for transactionIndex, content := range operation.Contents {
@@ -160,10 +184,8 @@ func (engine *DefaultRpcCollector) GetDelegationState(ctx context.Context, deleg
 				)
 
 				for internalResultIndex, internalResult := range content.Meta().InternalResults {
-					// TODO: check this
-					slices.Reverse(internalResult.Result.BalanceUpdates)
 					allBalanceUpdates = allBalanceUpdates.AddInternalResultBalanceUpdates(operation.Hash,
-						state.Index,
+						int64(transactionIndex),
 						int64(internalResultIndex),
 						internalResult.Result.BalanceUpdates...,
 					)
@@ -173,7 +195,9 @@ func (engine *DefaultRpcCollector) GetDelegationState(ctx context.Context, deleg
 		}
 	}
 
-	targetAmount := delegate.MinDelegated.Amount
+	// TODO:
+	// adjust based on overstake
+	// adjust based on delegation txs
 
 	for _, balanceUpdate := range allBalanceUpdates {
 		if _, found := state.Balances[balanceUpdate.Address()]; !found {
@@ -182,8 +206,8 @@ func (engine *DefaultRpcCollector) GetDelegationState(ctx context.Context, deleg
 
 		state.Balances[balanceUpdate.Address()] = state.Balances[balanceUpdate.Address()].Add64(balanceUpdate.Amount())
 		state.TotalBalance = state.TotalBalance.Add64(balanceUpdate.Amount())
-		// TODO: check this == sign here
-		if state.TotalBalance.Int64() >= targetAmount {
+		fmt.Println(balanceUpdate.Amount(), "====>", state.TotalBalance.Int64(), targetAmount, state.TotalBalance.Int64()-targetAmount)
+		if state.TotalBalance.Int64() == targetAmount {
 			found = true
 			state.Operation = balanceUpdate.Operation
 			state.Index = balanceUpdate.Index

@@ -82,17 +82,18 @@ func FetchAllDelegatesFromCycle(cycle int64, config *configuration.Runtime) ([]*
 	numDelegates := len(delegateList)
 	results := make([]*rpc.Delegate, numDelegates)
 	errs := make([]error, numDelegates)
-	var wg sync.WaitGroup
+	//var wg sync.WaitGroup
 
-	sem := make(chan struct{}, config.BatchSize)
+	//sem := make(chan struct{}, config.BatchSize)
 
 	slog.Info("fetching all delegates from", "cycle", cycle)
 	for i, delegate := range delegateList {
-		wg.Add(1)
-		go func(i int, delegate tezos.Address) {
-			defer wg.Done()
-			sem <- struct{}{}
-			defer func() { <-sem }()
+		//wg.Add(1)
+		func(i int, delegate tezos.Address) {
+			//defer wg.Done()
+			//sem <- struct{}{}
+			//defer func() { <-sem }()
+			slog.Info("fetching delegate", "cycle", cycle, "delegate", delegate.String())
 
 			delegateDetails, err := collector.GetDelegateFromCycle(defaultCtx, cycle, delegate)
 			if err != nil {
@@ -103,7 +104,7 @@ func FetchAllDelegatesFromCycle(cycle int64, config *configuration.Runtime) ([]*
 		}(i, delegate)
 	}
 
-	wg.Wait()
+	//wg.Wait()
 
 	for _, err := range errs {
 		if err != nil {
@@ -112,6 +113,7 @@ func FetchAllDelegatesFromCycle(cycle int64, config *configuration.Runtime) ([]*
 		}
 	}
 
+	slog.Info("fetched all delegates from", "cycle", cycle, "count", len(results))
 	// for _, v := range results {
 	// 	fmt.Println(*v)
 	// }
@@ -134,22 +136,25 @@ func FetchAllDelegatesStatesFromCycle(cycle int64, config *configuration.Runtime
 	numDelegates := len(delegates)
 	records := make([]*store.DelegationState, 0, numDelegates)
 	errs := make([]error, numDelegates)
-	var wg sync.WaitGroup
+	//var wg sync.WaitGroup
 	var mu sync.Mutex
 
-	sem := make(chan struct{}, config.BatchSize)
+	//sem := make(chan struct{}, config.BatchSize)
 
 	slog.Info("fetching all delegates states from", "cycle", cycle)
 
 	for i, delegate := range delegates {
-		wg.Add(1)
-		go func(i int, delegate *rpc.Delegate) {
-			defer wg.Done()
-			sem <- struct{}{}
-			defer func() { <-sem }()
+		// wg.Add(1)
+		func(i int, delegate *rpc.Delegate) {
+			//	defer wg.Done()
+			// sem <- struct{}{}
+			// defer func() { <-sem }()
+
+			slog.Info("fetching delegate state", "cycle", cycle, "delegate", delegate.Delegate.String())
 
 			delegateState, err := collector.GetDelegationState(defaultCtx, delegate)
 			if err != nil {
+				panic(err)
 				errs[i] = err
 				return
 			}
@@ -159,7 +164,7 @@ func FetchAllDelegatesStatesFromCycle(cycle int64, config *configuration.Runtime
 		}(i, delegate)
 	}
 
-	wg.Wait()
+	// wg.Wait()
 
 	for _, err := range errs {
 		if err != nil {

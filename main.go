@@ -23,9 +23,9 @@ func main() {
 	}
 
 	if *isTest {
-		core.FetchDelegateData("tz1KeWN4euqRoFg9cuNRoycArm9Ewz1Hsamc", nil, config)
-		core.FetchAllDelegatesFromCycle(int64(745), config)
-		core.FetchAllDelegatesStatesFromCycle(int64(745), config)
+		core.FetchDelegateData("tz2BPbakwgRGwtnjdouvCiQFBdKeSiiYL9E5", nil, config)
+		// core.FetchAllDelegatesFromCycle(int64(745), config)
+		// core.FetchAllDelegatesStatesFromCycle(int64(745), config)
 		return
 	}
 

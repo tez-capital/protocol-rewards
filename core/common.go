@@ -7,6 +7,7 @@ import (
 )
 
 const (
+	NoneBalanceUpdateSource                store.BalanceUpdateSource = "none"
 	BlockBalanceUpdateSource               store.BalanceUpdateSource = "block"
 	TransactionMetadataBalanceUpdateSource store.BalanceUpdateSource = "transaction-metadata"
 	TransactionContentsBalanceUpdateSource store.BalanceUpdateSource = "transaction-contents"
