@@ -97,14 +97,7 @@ func (engine *DefaultRpcCollector) GetDelegateFromCycle(ctx context.Context, cyc
 func (engine *DefaultRpcCollector) fetchDelegationState(ctx context.Context, delegate *rpc.Delegate, blockId rpc.BlockID) (*store.DelegationState, error) {
 	previousBlockId := rpc.NewBlockOffset(blockId, -1)
 
-	delegate, err := engine.rpc.GetDelegate(ctx, delegate.Delegate, blockId)
-	if err != nil {
-		return nil, err
-	}
-
-	delegateBalance := tezos.NewZ(delegate.FullBalance - delegate.CurrentFrozenDeposits)
-
-	delegate, err = engine.rpc.GetDelegate(ctx, delegate.Delegate, previousBlockId)
+	delegate, err := engine.rpc.GetDelegate(ctx, delegate.Delegate, previousBlockId)
 	if err != nil {
 		return nil, err
 	}
@@ -115,9 +108,13 @@ func (engine *DefaultRpcCollector) fetchDelegationState(ctx context.Context, del
 		TotalBalance: tezos.Z{},
 	}
 
-	state.Balances[delegate.Delegate] = delegateBalance
+	state.Balances[delegate.Delegate] = tezos.NewZ(delegate.FullBalance - delegate.CurrentFrozenDeposits)
 
 	for _, address := range delegate.DelegatedContracts {
+		if address == delegate.Delegate { // skip self delegation
+			continue
+		}
+
 		balance, err := engine.rpc.GetContractBalance(ctx, address, previousBlockId)
 		if err != nil {
 			return nil, err
@@ -161,11 +158,7 @@ func (engine *DefaultRpcCollector) GetDelegationState(ctx context.Context, deleg
 	found := false
 
 	allBalanceUpdates := make(ExtendedBalanceUpdates, 0, len(blockWithMinimumBalance.Operations)*2 /* thats minimum of balance updates we expect*/)
-	// block balance updates
-	allBalanceUpdates = allBalanceUpdates.AddBalanceUpdates(tezos.ZeroOpHash, -1, BlockBalanceUpdateSource, blockWithMinimumBalance.Metadata.BalanceUpdates...)
-
 	for _, batch := range blockWithMinimumBalance.Operations {
-
 		for _, operation := range batch {
 			// first op fees
 			for transactionIndex, content := range operation.Contents {
@@ -194,6 +187,8 @@ func (engine *DefaultRpcCollector) GetDelegationState(ctx context.Context, deleg
 
 		}
 	}
+	// block balance updates last
+	allBalanceUpdates = allBalanceUpdates.AddBalanceUpdates(tezos.ZeroOpHash, -1, BlockBalanceUpdateSource, blockWithMinimumBalance.Metadata.BalanceUpdates...)
 
 	// TODO:
 	// adjust based on overstake
@@ -206,8 +201,12 @@ func (engine *DefaultRpcCollector) GetDelegationState(ctx context.Context, deleg
 
 		state.Balances[balanceUpdate.Address()] = state.Balances[balanceUpdate.Address()].Add64(balanceUpdate.Amount())
 		state.TotalBalance = state.TotalBalance.Add64(balanceUpdate.Amount())
-		fmt.Println(balanceUpdate.Amount(), "====>", state.TotalBalance.Int64(), targetAmount, state.TotalBalance.Int64()-targetAmount)
-		if state.TotalBalance.Int64() == targetAmount {
+		totalBalance := state.TotalBalance.Int64()
+		if totalBalance > delegate.FullBalance*10 {
+			totalBalance = delegate.FullBalance * 10
+		}
+		fmt.Println(balanceUpdate.Amount(), "====>", totalBalance, targetAmount, state.TotalBalance.Int64()-targetAmount)
+		if totalBalance == targetAmount {
 			found = true
 			state.Operation = balanceUpdate.Operation
 			state.Index = balanceUpdate.Index
