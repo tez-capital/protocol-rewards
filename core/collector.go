@@ -1,17 +1,11 @@
 package core
 
 import (
-	"archive/zip"
-	"bytes"
 	"context"
 	"errors"
 	"fmt"
-	"io"
 	"log/slog"
 	"net/http"
-	"os"
-	"path/filepath"
-	"strings"
 	"time"
 
 	"github.com/samber/lo"
@@ -20,11 +14,6 @@ import (
 	"github.com/trilitech/tzgo/rpc"
 	"github.com/trilitech/tzgo/tezos"
 )
-
-type DefaultRpcCollector struct {
-	rpcUrl string
-	rpc    *rpc.Client
-}
 
 var (
 	defaultCtx context.Context = context.Background()
@@ -37,138 +26,17 @@ func Abs(x int64) int64 {
 	return x
 }
 
-type CachingTransport struct {
-	Transport   http.RoundTripper
-	CacheDir    string
-	zipCacheMap map[string]*zip.File
+type DefaultRpcCollector struct {
+	rpcUrl string
+	rpc    *rpc.Client
 }
 
-func removeFirstPart(path, target string) string {
-	// Split the path into segments based on "/".
-	segments := strings.Split(path, "/")
-
-	// Check if the first segment matches the target string.
-	if len(segments) > 0 && segments[0] == target {
-		// Remove the first segment.
-		segments = segments[1:]
-	}
-
-	// Join the segments back into a path.
-	return strings.Join(segments, "/")
-}
-
-func getFilenameWithoutExt(path string) string {
-	// Extract the base filename from the path.
-	filename := filepath.Base(path)
-
-	// Find the last dot in the filename.
-	dotIndex := strings.LastIndex(filename, ".")
-
-	// If there's a dot, and it's not the first character, trim everything after the dot.
-	if dotIndex > 0 {
-		filename = filename[:dotIndex]
-	}
-
-	return filename
-}
-
-func NewCachingTransport(transport http.RoundTripper, cacheDir, zipPath string) (*CachingTransport, error) {
-	var err error
-	zipReader, err := zip.OpenReader(zipPath)
-	if err != nil {
-		return nil, err
-	}
-
-	result := &CachingTransport{
-		Transport:   transport,
-		CacheDir:    cacheDir,
-		zipCacheMap: make(map[string]*zip.File),
-	}
-
-	for _, f := range zipReader.File {
-		if f.FileInfo().IsDir() {
-			continue
-		}
-
-		result.zipCacheMap[f.Name] = f
-		result.zipCacheMap[removeFirstPart(f.Name, getFilenameWithoutExt(zipPath))] = f
-	}
-
-	return result, nil
-}
-
-func (t *CachingTransport) RoundTrip(req *http.Request) (*http.Response, error) {
-	if req.Method != "GET" {
-		return t.Transport.RoundTrip(req) // Only cache GET requests
-	}
-
-	filename := t.cacheFilename(req.URL.Path)
-
-	if f, ok := t.zipCacheMap[filename]; ok {
-		rc, err := f.Open()
-		if err != nil {
-			return nil, err
-		}
-		defer rc.Close()
-
-		data, err := io.ReadAll(rc)
-		if err != nil {
-			return nil, err
-		}
-		return &http.Response{
-			StatusCode: 200,
-			Body:       io.NopCloser(bytes.NewReader(data)),
-			Header:     make(http.Header),
-		}, nil
-	}
-
-	if data, err := os.ReadFile(t.CacheDir + "/" + filename); err == nil {
-		// Cache hit, return the response from the cache
-		return &http.Response{
-			StatusCode: 200,
-			Body:       io.NopCloser(bytes.NewReader(data)),
-			Header:     make(http.Header),
-		}, nil
-	}
-
-	// Cache miss, make the actual request
-	resp, err := t.Transport.RoundTrip(req)
-	if err != nil {
-		return nil, err
-	}
-
-	// Read the response body
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, err
-	}
-	resp.Body.Close() // close the original body
-
-	// Save the response body to the cache
-	os.MkdirAll(t.CacheDir, 0755)
-	os.WriteFile(filename, body, 0644)
-
-	// Reconstruct the response body before returning
-	resp.Body = io.NopCloser(bytes.NewBuffer(body))
-	return resp, nil
-}
-
-func (t *CachingTransport) cacheFilename(urlPath string) string {
-	// Remove leading slashes and replace remaining slashes with underscores
-	safePath := strings.TrimLeft(urlPath, "/")
-	return strings.ReplaceAll(safePath, "/", "_")
-}
-
-func InitDefaultRpcCollector(rpcUrl string, cache bool) (*DefaultRpcCollector, error) {
+func NewDefaultRpcCollector(rpcUrl string, transport http.RoundTripper) (*DefaultRpcCollector, error) {
 	client := http.Client{
 		Timeout: 10 * time.Second,
 	}
 
-	if cache {
-		transport, err := NewCachingTransport(http.DefaultTransport, "test/data/745", "test/data/745.zip")
-		if err != nil {
-			return nil, err
-		}
+	if transport != nil {
 		client.Transport = transport
 	}
 
@@ -184,10 +52,6 @@ func InitDefaultRpcCollector(rpcUrl string, cache bool) (*DefaultRpcCollector, e
 	}
 
 	return result, result.RefreshParams()
-}
-
-func (engine *DefaultRpcCollector) GetId() string {
-	return "DefaultRpcAndTzktCollector"
 }
 
 func (engine *DefaultRpcCollector) RefreshParams() error {
@@ -274,6 +138,7 @@ func (engine *DefaultRpcCollector) fetchInitialDelegationState(ctx context.Conte
 		Baker:            delegate.Delegate,
 	})
 
+	// add the balance of the delegated contracts
 	for _, address := range delegate.DelegatedContracts {
 		if address == delegate.Delegate { // skip self delegation
 			continue
@@ -477,8 +342,7 @@ func (engine *DefaultRpcCollector) GetDelegationState(ctx context.Context, deleg
 
 	if !found {
 		slog.Error("failed to find the exact balance", "delegate", delegate.Delegate.String(), "level_info", delegate.MinDelegated.Level, "target", targetAmount, "actual", state.DelegatedBalance())
-		panic("delegate has not reached minimum delegated balance")
-		//return nil, errors.New("delegate has not reached minimum delegated balance")
+		return nil, constants.ErrMinimumDelegatedBalanceNotFound
 	}
 	return state, nil
 }
