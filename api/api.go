@@ -1,12 +1,12 @@
 package api
 
 import (
+	"fmt"
 	"strconv"
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/tez-capital/ogun/configuration"
 	"github.com/tez-capital/ogun/core"
-	"github.com/tez-capital/ogun/store"
 )
 
 func FetchCycle(app *fiber.App, config *configuration.Runtime) {
@@ -32,11 +32,13 @@ func FetchCycle(app *fiber.App, config *configuration.Runtime) {
 			})
 		}
 
-		if err = store.StoreDelegatesStates(delegatesStates); err != nil {
-			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-				"error": err.Error(),
-			})
-		}
+		fmt.Println(delegatesStates)
+
+		// if err = store.StoreDelegatesStates(delegatesStates); err != nil {
+		// 	return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+		// 		"error": err.Error(),
+		// 	})
+		// }
 
 		return c.SendStatus(fiber.StatusOK)
 	})

@@ -7,8 +7,9 @@ import (
 	"log/slog"
 	"sync"
 
+	"github.com/tez-capital/ogun/common"
 	"github.com/tez-capital/ogun/configuration"
-	"github.com/tez-capital/ogun/store"
+	"github.com/tez-capital/ogun/constants"
 	"github.com/trilitech/tzgo/rpc"
 	"github.com/trilitech/tzgo/tezos"
 	"gorm.io/gorm"
@@ -25,7 +26,7 @@ func getCollector(config *configuration.Runtime) (*DefaultRpcCollector, error) {
 	}
 
 	rpcUrl := "https://eu.rpc.tez.capital/"
-	collector, err := InitDefaultRpcCollector(rpcUrl)
+	collector, err := InitDefaultRpcCollector(rpcUrl, true)
 	if err != nil {
 		slog.Error("failed to initialize collector", "error", err)
 		return nil, err
@@ -52,7 +53,7 @@ func FetchDelegateData(delegateAddress string, db *gorm.DB, config *configuratio
 		return err
 	}
 
-	slog.Info("getting delegation state")
+	slog.Info("getting delegation state", "delegate", delegate.Delegate.String(), "cycle", lastCompletedCycle)
 	state, err := collector.GetDelegationState(defaultCtx, delegate)
 	if err != nil {
 		slog.Error("failed to fetch delegation state", "error", err)
@@ -121,7 +122,7 @@ func FetchAllDelegatesFromCycle(cycle int64, config *configuration.Runtime) ([]*
 	return results, nil
 }
 
-func FetchAllDelegatesStatesFromCycle(cycle int64, config *configuration.Runtime) ([]*store.DelegationState, error) {
+func FetchAllDelegatesStatesFromCycle(cycle int64, config *configuration.Runtime) ([]*common.DelegationState, error) {
 	collector, err := getCollector(config)
 	if err != nil {
 		return nil, err
@@ -134,11 +135,22 @@ func FetchAllDelegatesStatesFromCycle(cycle int64, config *configuration.Runtime
 	}
 
 	numDelegates := len(delegates)
-	records := make([]*store.DelegationState, 0, numDelegates)
+	records := make([]*common.DelegationState, 0, numDelegates)
 	errs := make([]error, numDelegates)
 	//var wg sync.WaitGroup
 	var mu sync.Mutex
 
+	// d2 := make([]*rpc.Delegate, 0, numDelegates)
+	// found := false
+	// for _, v := range delegates {
+	// 	if v.Delegate.String() == "tz1bYemsZHPzL3qUkQ5Ao3bze5viTfd8v7Lj" {
+	// 		found = true
+	// 	}
+	// 	if !found {
+	// 		continue
+	// 	}
+	// 	d2 = append(d2, v)
+	// }
 	//sem := make(chan struct{}, config.BatchSize)
 
 	slog.Info("fetching all delegates states from", "cycle", cycle)
@@ -154,9 +166,12 @@ func FetchAllDelegatesStatesFromCycle(cycle int64, config *configuration.Runtime
 
 			delegateState, err := collector.GetDelegationState(defaultCtx, delegate)
 			if err != nil {
+				if err == constants.ErrDelegateHasNoMinimumDelegatedBalance {
+					slog.Error("failed to fetch delegate state", "cycle", cycle, "delegate", delegate.Delegate.String(), "error", err.Error())
+					errs[i] = err
+					return
+				}
 				panic(err)
-				errs[i] = err
-				return
 			}
 			mu.Lock()
 			records = append(records, delegateState)

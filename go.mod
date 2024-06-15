@@ -6,7 +6,7 @@ require (
 	github.com/gofiber/fiber/v2 v2.52.4
 	github.com/hjson/hjson-go/v4 v4.4.0
 	github.com/samber/lo v1.39.0
-	github.com/trilitech/tzgo v1.19.5
+	github.com/trilitech/tzgo v1.19.6
 	gorm.io/driver/postgres v1.5.9
 	gorm.io/gorm v1.25.10
 )
@@ -34,7 +34,7 @@ require (
 	github.com/valyala/fasthttp v1.54.0 // indirect
 	github.com/valyala/tcplisten v1.0.0 // indirect
 	golang.org/x/crypto v0.24.0 // indirect
-	golang.org/x/exp v0.0.0-20240604190554-fc45aab8b7f8 // indirect
+	golang.org/x/exp v0.0.0-20240613232115-7f521ea00fb8 // indirect
 	golang.org/x/sync v0.7.0 // indirect
 	golang.org/x/sys v0.21.0 // indirect
 	golang.org/x/text v0.16.0 // indirect

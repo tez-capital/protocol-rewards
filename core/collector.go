@@ -1,14 +1,22 @@
 package core
 
 import (
+	"archive/zip"
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
+	"io"
+	"log/slog"
 	"net/http"
+	"os"
+	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/samber/lo"
-	"github.com/tez-capital/ogun/store"
+	"github.com/tez-capital/ogun/common"
+	"github.com/tez-capital/ogun/constants"
 	"github.com/trilitech/tzgo/rpc"
 	"github.com/trilitech/tzgo/tezos"
 )
@@ -22,11 +30,148 @@ var (
 	defaultCtx context.Context = context.Background()
 )
 
-func InitDefaultRpcCollector(rpcUrl string) (*DefaultRpcCollector, error) {
+func Abs(x int64) int64 {
+	if x < 0 {
+		return -x
+	}
+	return x
+}
 
+type CachingTransport struct {
+	Transport   http.RoundTripper
+	CacheDir    string
+	zipCacheMap map[string]*zip.File
+}
+
+func removeFirstPart(path, target string) string {
+	// Split the path into segments based on "/".
+	segments := strings.Split(path, "/")
+
+	// Check if the first segment matches the target string.
+	if len(segments) > 0 && segments[0] == target {
+		// Remove the first segment.
+		segments = segments[1:]
+	}
+
+	// Join the segments back into a path.
+	return strings.Join(segments, "/")
+}
+
+func getFilenameWithoutExt(path string) string {
+	// Extract the base filename from the path.
+	filename := filepath.Base(path)
+
+	// Find the last dot in the filename.
+	dotIndex := strings.LastIndex(filename, ".")
+
+	// If there's a dot, and it's not the first character, trim everything after the dot.
+	if dotIndex > 0 {
+		filename = filename[:dotIndex]
+	}
+
+	return filename
+}
+
+func NewCachingTransport(transport http.RoundTripper, cacheDir, zipPath string) (*CachingTransport, error) {
+	var err error
+	zipReader, err := zip.OpenReader(zipPath)
+	if err != nil {
+		return nil, err
+	}
+
+	result := &CachingTransport{
+		Transport:   transport,
+		CacheDir:    cacheDir,
+		zipCacheMap: make(map[string]*zip.File),
+	}
+
+	for _, f := range zipReader.File {
+		if f.FileInfo().IsDir() {
+			continue
+		}
+
+		result.zipCacheMap[f.Name] = f
+		result.zipCacheMap[removeFirstPart(f.Name, getFilenameWithoutExt(zipPath))] = f
+	}
+
+	return result, nil
+}
+
+func (t *CachingTransport) RoundTrip(req *http.Request) (*http.Response, error) {
+	if req.Method != "GET" {
+		return t.Transport.RoundTrip(req) // Only cache GET requests
+	}
+
+	filename := t.cacheFilename(req.URL.Path)
+
+	if f, ok := t.zipCacheMap[filename]; ok {
+		rc, err := f.Open()
+		if err != nil {
+			return nil, err
+		}
+		defer rc.Close()
+
+		data, err := io.ReadAll(rc)
+		if err != nil {
+			return nil, err
+		}
+		return &http.Response{
+			StatusCode: 200,
+			Body:       io.NopCloser(bytes.NewReader(data)),
+			Header:     make(http.Header),
+		}, nil
+	}
+
+	if data, err := os.ReadFile(t.CacheDir + "/" + filename); err == nil {
+		// Cache hit, return the response from the cache
+		return &http.Response{
+			StatusCode: 200,
+			Body:       io.NopCloser(bytes.NewReader(data)),
+			Header:     make(http.Header),
+		}, nil
+	}
+
+	// Cache miss, make the actual request
+	resp, err := t.Transport.RoundTrip(req)
+	if err != nil {
+		return nil, err
+	}
+
+	// Read the response body
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, err
+	}
+	resp.Body.Close() // close the original body
+
+	// Save the response body to the cache
+	os.MkdirAll(t.CacheDir, 0755)
+	os.WriteFile(filename, body, 0644)
+
+	// Reconstruct the response body before returning
+	resp.Body = io.NopCloser(bytes.NewBuffer(body))
+	return resp, nil
+}
+
+func (t *CachingTransport) cacheFilename(urlPath string) string {
+	// Remove leading slashes and replace remaining slashes with underscores
+	safePath := strings.TrimLeft(urlPath, "/")
+	return strings.ReplaceAll(safePath, "/", "_")
+}
+
+func InitDefaultRpcCollector(rpcUrl string, cache bool) (*DefaultRpcCollector, error) {
 	client := http.Client{
 		Timeout: 10 * time.Second,
 	}
+
+	if cache {
+		transport, err := NewCachingTransport(http.DefaultTransport, "test/data/745", "test/data/745.zip")
+		if err != nil {
+			return nil, err
+		}
+		client.Transport = transport
+	}
+
 	rpcClient, err := rpc.NewClient(rpcUrl, &client)
 	if err != nil {
 		return nil, err
@@ -79,7 +224,7 @@ func (engine *DefaultRpcCollector) determineLastBlockOfCycle(cycle int64) rpc.Bl
 
 func (engine *DefaultRpcCollector) GetActiveDelegatesFromCycle(ctx context.Context, cycle int64) (rpc.DelegateList, error) {
 	id := engine.determineLastBlockOfCycle(cycle)
-	selector := "active=true"
+	selector := "active=true&with_minimal_stake=true"
 	delegates := make(rpc.DelegateList, 0)
 	u := fmt.Sprintf("chains/main/blocks/%s/context/delegates?%s", id, selector)
 	if err := engine.rpc.Get(ctx, u, &delegates); err != nil {
@@ -94,130 +239,246 @@ func (engine *DefaultRpcCollector) GetDelegateFromCycle(ctx context.Context, cyc
 	return engine.rpc.GetDelegate(ctx, delegateAddress, blockId)
 }
 
-func (engine *DefaultRpcCollector) fetchDelegationState(ctx context.Context, delegate *rpc.Delegate, blockId rpc.BlockID) (*store.DelegationState, error) {
-	previousBlockId := rpc.NewBlockOffset(blockId, -1)
+// fetches the balance of the contract at the beginning of the block - basically the balance of the contract at the end of the previous block
+func (engine *DefaultRpcCollector) fetchContractInitialBalanceInfo(ctx context.Context, address tezos.Address, blockWithMinimumId rpc.BlockID) (*common.DelegationStateBalanceInfo, error) {
+	previousBlockId := rpc.NewBlockOffset(blockWithMinimumId, -1)
 
-	delegate, err := engine.rpc.GetDelegate(ctx, delegate.Delegate, previousBlockId)
+	contractInfo, err := engine.rpc.GetContract(ctx, address, previousBlockId)
+	if err != nil {
+		return nil, errors.Join(constants.ErrFailedToFetchContract, err)
+	}
+
+	return &common.DelegationStateBalanceInfo{
+		// actual delegated balance is the balance of the contract plus the sum of the actual amounts of the unfrozen deposits
+		Balance:        contractInfo.Balance,
+		FrozenDeposits: contractInfo.FrozenDeposits.ActualAmount,
+		UnfrozenDeposits: lo.SumBy(contractInfo.UnstakedFrozenDeposits, func(f rpc.UnstakedDeposit) int64 {
+			return f.ActualAmount
+		}),
+		Baker: contractInfo.Delegate,
+	}, nil
+}
+
+// we fetch the previous block to get the state at the beginning of the block we are going to process
+func (engine *DefaultRpcCollector) fetchInitialDelegationState(ctx context.Context, delegate *rpc.Delegate, blockWithMinimumId rpc.BlockID) (*common.DelegationState, error) {
+	delegate, err := engine.rpc.GetDelegate(ctx, delegate.Delegate, rpc.NewBlockOffset(blockWithMinimumId, -1))
 	if err != nil {
 		return nil, err
 	}
 
-	state := &store.DelegationState{
-		Baker:        delegate.Delegate,
-		Balances:     make(map[tezos.Address]tezos.Z, len(delegate.DelegatedContracts)+1),
-		TotalBalance: tezos.Z{},
-	}
-
-	state.Balances[delegate.Delegate] = tezos.NewZ(delegate.FullBalance - delegate.CurrentFrozenDeposits)
+	state := common.NewDelegationState(delegate)
+	state.AddBalance(delegate.Delegate, common.DelegationStateBalanceInfo{
+		Balance:          delegate.Balance,
+		FrozenDeposits:   delegate.CurrentFrozenDeposits,
+		UnfrozenDeposits: delegate.FullBalance - delegate.CurrentFrozenDeposits - delegate.Balance,
+		Baker:            delegate.Delegate,
+	})
 
 	for _, address := range delegate.DelegatedContracts {
 		if address == delegate.Delegate { // skip self delegation
 			continue
 		}
 
-		balance, err := engine.rpc.GetContractBalance(ctx, address, previousBlockId)
+		balanceInfo, err := engine.fetchContractInitialBalanceInfo(ctx, address, blockWithMinimumId)
 		if err != nil {
 			return nil, err
 		}
-		state.Balances[address] = balance
+		state.AddBalance(address, *balanceInfo)
 	}
-
-	state.TotalBalance = lo.Reduce(lo.Values(state.Balances), func(acc tezos.Z, balance tezos.Z, _ int) tezos.Z {
-		return acc.Add(balance)
-	}, state.TotalBalance)
 
 	return state, nil
 }
 
-func (engine *DefaultRpcCollector) GetDelegationState(ctx context.Context, delegate *rpc.Delegate) (*store.DelegationState, error) {
-	if delegate.MinDelegated.Level.Level == 0 {
-		return nil, errors.New("delegate has no minimum delegated balance")
-	}
-	fmt.Println(delegate.MinDelegated)
-
-	blockWithMinimumBalance, err := engine.rpc.GetBlock(ctx, rpc.BlockLevel(delegate.MinDelegated.Level.Level))
+func (engine *DefaultRpcCollector) getBlockBalanceUpdates(ctx context.Context, state *common.DelegationState, blockLevelWithMinimumBalance rpc.BlockLevel) (OgunBalanceUpdates, error) {
+	blockWithMinimumBalance, err := engine.rpc.GetBlock(ctx, blockLevelWithMinimumBalance)
 	if err != nil {
 		return nil, err
 	}
 
-	state, err := engine.fetchDelegationState(ctx, delegate, rpc.BlockLevel(delegate.MinDelegated.Level.Level))
-	if err != nil {
-		return nil, err
-	}
-
-	state.Cycle = delegate.MinDelegated.Level.Cycle
-	state.Level = delegate.MinDelegated.Level.Level
-	targetAmount := delegate.MinDelegated.Amount
-
-	// we may match at the beginning of the block, we do not have to further process
-	if state.TotalBalance.Int64() == targetAmount {
-		state.Source = NoneBalanceUpdateSource
-		return state, nil
-	}
-
-	found := false
-
-	allBalanceUpdates := make(ExtendedBalanceUpdates, 0, len(blockWithMinimumBalance.Operations)*2 /* thats minimum of balance updates we expect*/)
+	allBalanceUpdates := make(OgunBalanceUpdates, 0, len(blockWithMinimumBalance.Operations)*2 /* thats minimum of balance updates we expect*/)
 	for _, batch := range blockWithMinimumBalance.Operations {
 		for _, operation := range batch {
 			// first op fees
 			for transactionIndex, content := range operation.Contents {
-				allBalanceUpdates = allBalanceUpdates.AddBalanceUpdates(operation.Hash,
-					int64(transactionIndex),
-					TransactionMetadataBalanceUpdateSource,
-					content.Meta().BalanceUpdates...,
-				)
+				allBalanceUpdates = allBalanceUpdates.Add(lo.Map(content.Meta().BalanceUpdates, func(bu rpc.BalanceUpdate, _ int) OgunBalanceUpdate {
+					return OgunBalanceUpdate{
+						Address:   bu.Address(),
+						Amount:    bu.Amount(),
+						Operation: operation.Hash,
+						Index:     transactionIndex,
+						Source:    common.CreatedAtTransactionMetadata,
+						Kind:      bu.Kind,
+						Category:  bu.Category,
+					}
+				})...)
 			}
 			// then transfers
 			for transactionIndex, content := range operation.Contents {
-				allBalanceUpdates = allBalanceUpdates.AddBalanceUpdates(operation.Hash,
-					int64(transactionIndex),
-					TransactionContentsBalanceUpdateSource,
-					content.Result().BalanceUpdates...,
-				)
+				if content.Kind() == tezos.OpTypeDelegation {
+					content, ok := content.(*rpc.Delegation)
+					if !ok {
+						slog.Error("delegation op with invalid content", "operation", operation.Hash)
+					}
+
+					if !state.HasContractBalanceInfo(content.Source) {
+						// fetch
+						balanceInfo, err := engine.fetchContractInitialBalanceInfo(ctx, content.Source, blockLevelWithMinimumBalance)
+						if err != nil {
+							return nil, err
+						}
+						state.AddBalance(content.Source, *balanceInfo)
+					}
+
+					allBalanceUpdates = allBalanceUpdates.Add(OgunBalanceUpdate{
+						Address:   content.Source,
+						Operation: operation.Hash,
+						Index:     transactionIndex,
+						Source:    common.CreatedOnDelegation,
+						Delegate:  content.Delegate,
+					})
+					// no other updates nor internal results for delegation
+					continue
+				}
+
+				allBalanceUpdates = allBalanceUpdates.Add(lo.Map(content.Result().BalanceUpdates, func(bu rpc.BalanceUpdate, _ int) OgunBalanceUpdate {
+					return OgunBalanceUpdate{
+						Address:   bu.Address(),
+						Amount:    bu.Amount(),
+						Operation: operation.Hash,
+						Index:     transactionIndex,
+						Source:    common.CreatedAtTransactionResult,
+						Kind:      bu.Kind,
+						Category:  bu.Category,
+					}
+				})...)
 
 				for internalResultIndex, internalResult := range content.Meta().InternalResults {
-					allBalanceUpdates = allBalanceUpdates.AddInternalResultBalanceUpdates(operation.Hash,
-						int64(transactionIndex),
-						int64(internalResultIndex),
-						internalResult.Result.BalanceUpdates...,
-					)
+					allBalanceUpdates = allBalanceUpdates.Add(lo.Map(internalResult.Result.BalanceUpdates, func(bu rpc.BalanceUpdate, _ int) OgunBalanceUpdate {
+						return OgunBalanceUpdate{
+							Address:       bu.Address(),
+							Amount:        bu.Amount(),
+							Operation:     operation.Hash,
+							Index:         transactionIndex,
+							InternalIndex: internalResultIndex,
+							Source:        common.CreatedAtTransactionInternalResult,
+							Kind:          bu.Kind,
+							Category:      bu.Category,
+						}
+					})...)
 				}
 			}
 
 		}
 	}
+
+	blockBalanceUpdates := lo.Map(blockWithMinimumBalance.Metadata.BalanceUpdates, func(bu rpc.BalanceUpdate, _ int) OgunBalanceUpdate {
+		return OgunBalanceUpdate{
+			Address:  bu.Address(),
+			Amount:   bu.Amount(),
+			Source:   common.CreatedAtBlockMetadata,
+			Kind:     bu.Kind,
+			Category: bu.Category,
+		}
+	})
+
+	// for some reason updates causes deposits are not considered ¯\_(ツ)_/¯
+	preprocessedBlockBalanceUpdates := make([]OgunBalanceUpdate, 0, len(blockBalanceUpdates))
+	skip := false
+	for i, update := range blockBalanceUpdates {
+		if skip {
+			skip = false
+			continue
+		}
+		if i+1 < len(blockBalanceUpdates) {
+			next := blockBalanceUpdates[i+1]
+			if update.Amount < 0 && next.Kind == "freezer" && next.Category == "deposits" {
+				skip = true
+				continue
+			}
+		}
+		preprocessedBlockBalanceUpdates = append(preprocessedBlockBalanceUpdates, update)
+	}
+	// end for some reason updates causes deposits are not considered  ¯\_(ツ)_/¯
+
 	// block balance updates last
-	allBalanceUpdates = allBalanceUpdates.AddBalanceUpdates(tezos.ZeroOpHash, -1, BlockBalanceUpdateSource, blockWithMinimumBalance.Metadata.BalanceUpdates...)
+	allBalanceUpdates = allBalanceUpdates.Add(preprocessedBlockBalanceUpdates...)
+
+	return allBalanceUpdates, nil
+}
+
+func (engine *DefaultRpcCollector) GetDelegationState(ctx context.Context, delegate *rpc.Delegate) (*common.DelegationState, error) {
+	blockLevelWithMinimumBalance := rpc.BlockLevel(delegate.MinDelegated.Level.Level)
+	targetAmount := delegate.MinDelegated.Amount
+
+	if blockLevelWithMinimumBalance == 0 {
+		return nil, constants.ErrDelegateHasNoMinimumDelegatedBalance
+	}
+
+	state, err := engine.fetchInitialDelegationState(ctx, delegate, blockLevelWithMinimumBalance)
+	if err != nil {
+		return nil, err
+	}
+
+	// we may match at the beginning of the block, we do not have to further process
+	if state.DelegatedBalance() == targetAmount {
+		state.CreatedAt = common.DelegationStateCreationInfo{
+			Level: blockLevelWithMinimumBalance.Int64(),
+			Kind:  common.CreatedAtBlockBeginning,
+		}
+		return state, nil
+	}
 
 	// TODO:
 	// adjust based on overstake
-	// adjust based on delegation txs
+	allBalanceUpdates, err := engine.getBlockBalanceUpdates(ctx, state, blockLevelWithMinimumBalance)
+	if err != nil {
+		return nil, err
+	}
 
+	found := false
 	for _, balanceUpdate := range allBalanceUpdates {
-		if _, found := state.Balances[balanceUpdate.Address()]; !found {
+		if !state.HasContractBalanceInfo(balanceUpdate.Address) {
 			continue
 		}
 
-		state.Balances[balanceUpdate.Address()] = state.Balances[balanceUpdate.Address()].Add64(balanceUpdate.Amount())
-		state.TotalBalance = state.TotalBalance.Add64(balanceUpdate.Amount())
-		totalBalance := state.TotalBalance.Int64()
-		if totalBalance > delegate.FullBalance*10 {
-			totalBalance = delegate.FullBalance * 10
+		if constants.IgnoredBalanceUpdateKinds.Contains(balanceUpdate.Kind) {
+			continue
 		}
-		fmt.Println(balanceUpdate.Amount(), "====>", totalBalance, targetAmount, state.TotalBalance.Int64()-targetAmount)
-		if totalBalance == targetAmount {
+
+		switch balanceUpdate.Source {
+		case common.CreatedOnDelegation:
+			state.Delegate(balanceUpdate.Address, balanceUpdate.Delegate)
+		default:
+			switch {
+			case balanceUpdate.Kind == "freezer" && balanceUpdate.Category == "deposits":
+				state.UpdateBalance(balanceUpdate.Address, "frozen_deposits", balanceUpdate.Amount)
+			case balanceUpdate.Kind == "freezer" && balanceUpdate.Category == "unstaked_deposits":
+				state.UpdateBalance(balanceUpdate.Address, "unfrozen_deposits", balanceUpdate.Amount)
+			default:
+				state.UpdateBalance(balanceUpdate.Address, "", balanceUpdate.Amount)
+			}
+
+		}
+
+		//fmt.Println(balanceUpdate.Amount, "====>", state.DelegatedBalance(), targetAmount, state.DelegatedBalance()-targetAmount)
+
+		if Abs(state.DelegatedBalance()-targetAmount) <= 1 {
 			found = true
-			state.Operation = balanceUpdate.Operation
-			state.Index = balanceUpdate.Index
-			state.InternalIndex = balanceUpdate.InternalIndex
-			state.Source = balanceUpdate.Source
+			state.CreatedAt = common.DelegationStateCreationInfo{
+				Level:         blockLevelWithMinimumBalance.Int64(),
+				Operation:     balanceUpdate.Operation,
+				Index:         balanceUpdate.Index,
+				InternalIndex: balanceUpdate.InternalIndex,
+				Kind:          balanceUpdate.Source,
+			}
 			break
 		}
 	}
 
 	if !found {
-		return nil, errors.New("delegate has not reached minimum delegated balance")
+		slog.Error("failed to find the exact balance", "delegate", delegate.Delegate.String(), "level_info", delegate.MinDelegated.Level, "target", targetAmount, "actual", state.DelegatedBalance())
+		panic("delegate has not reached minimum delegated balance")
+		//return nil, errors.New("delegate has not reached minimum delegated balance")
 	}
 	return state, nil
 }

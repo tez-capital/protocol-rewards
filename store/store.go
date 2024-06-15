@@ -25,14 +25,14 @@ func ConnectDatabase(host, user, pass, database, port string) {
 	}
 
 	// Auto migrate the DelegationState struct
-	if err := db.AutoMigrate(&DelegationState{}); err != nil {
-		fmt.Println("Error migrating database:", err)
-		return
-	}
+	// if err := db.AutoMigrate(&DelegationState{}); err != nil {
+	// 	fmt.Println("Error migrating database:", err)
+	// 	return
+	// }
 	DB = db
 }
 
-func StoreDelegatesStates(records []*DelegationState) error {
+func StoreDelegatesStates(records []*string) error {
 	if err := DB.Create(&records).Error; err != nil {
 		return fmt.Errorf("error saving delegates to database: %v", err)
 	}
