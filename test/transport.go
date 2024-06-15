@@ -8,12 +8,14 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 )
 
 type TestTransport struct {
 	Transport   http.RoundTripper
 	CacheDir    string
 	zipCacheMap map[string]*zip.File
+	zipCacheMtx sync.Mutex
 }
 
 func removeFirstPart(path, target string) string {
@@ -56,6 +58,7 @@ func NewTestTransport(transport http.RoundTripper, cacheDir, zipPath string) (*T
 		Transport:   transport,
 		CacheDir:    cacheDir,
 		zipCacheMap: make(map[string]*zip.File),
+		zipCacheMtx: sync.Mutex{},
 	}
 
 	for _, f := range zipReader.File {
@@ -63,7 +66,6 @@ func NewTestTransport(transport http.RoundTripper, cacheDir, zipPath string) (*T
 			continue
 		}
 
-		result.zipCacheMap[f.Name] = f
 		result.zipCacheMap[removeFirstPart(f.Name, getFilenameWithoutExt(zipPath))] = f
 	}
 
@@ -77,6 +79,8 @@ func (t *TestTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 
 	filename := t.cacheFilename(req.URL.Path)
 
+	// t.zipCacheMtx.Lock()
+	// defer t.zipCacheMtx.Unlock()
 	if f, ok := t.zipCacheMap[filename]; ok {
 		rc, err := f.Open()
 		if err != nil {

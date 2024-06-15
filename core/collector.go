@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"sync"
 	"time"
 
 	"github.com/samber/lo"
@@ -138,19 +139,38 @@ func (engine *DefaultRpcCollector) fetchInitialDelegationState(ctx context.Conte
 		Baker:            delegate.Delegate,
 	})
 
+	ch := lo.SliceToChannel(constants.CONTRACT_FETCH_BATCH_SIZE, lo.Filter(delegate.DelegatedContracts, func(address tezos.Address, _ int) bool {
+		return address != delegate.Delegate // baker is already included in the state
+	}))
+
 	// add the balance of the delegated contracts
-	for _, address := range delegate.DelegatedContracts {
-		if address == delegate.Delegate { // skip self delegation
-			continue
-		}
 
-		balanceInfo, err := engine.fetchContractInitialBalanceInfo(ctx, address, blockWithMinimumId)
-		if err != nil {
-			return nil, err
+	mtx := sync.Mutex{}
+	// add the balance of the delegated contracts
+	for {
+		delegatedContracts, length, _, ok := lo.Buffer(ch, constants.CONTRACT_FETCH_BATCH_SIZE)
+		wg := sync.WaitGroup{}
+		wg.Add(length)
+		for _, address := range delegatedContracts {
+			go func(address tezos.Address) {
+				defer wg.Done()
+				balanceInfo, err := engine.fetchContractInitialBalanceInfo(ctx, address, blockWithMinimumId)
+				if err != nil {
+					slog.Error("failed to fetch contract balance info", "address", address.String(), "error", err)
+					return
+				}
+				//fmt.Println("balanceInfo", balanceInfo, "address", address.String())
+
+				mtx.Lock()
+				defer mtx.Unlock()
+				state.AddBalance(address, *balanceInfo)
+			}(address)
 		}
-		state.AddBalance(address, *balanceInfo)
+		wg.Wait()
+		if !ok {
+			break
+		}
 	}
-
 	return state, nil
 }
 
