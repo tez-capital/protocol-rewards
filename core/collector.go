@@ -3,7 +3,6 @@ package core
 import (
 	"context"
 	"errors"
-	"fmt"
 	"log/slog"
 	"math/rand"
 	"net/http"
@@ -137,7 +136,7 @@ func (engine *rpcCollector) GetActiveDelegatesFromCycle(ctx context.Context, cyc
 
 func (engine *rpcCollector) GetDelegateFromCycle(ctx context.Context, cycle int64, delegateAddress tezos.Address) (*rpc.Delegate, error) {
 	blockId := engine.determineLastBlockOfCycle(cycle)
-	fmt.Println(blockId)
+
 	return attemptWithClients(engine.rpcs, func(client *rpc.Client) (*rpc.Delegate, error) {
 		return client.GetDelegate(ctx, delegateAddress, blockId)
 	})
@@ -327,7 +326,6 @@ func (engine *rpcCollector) GetDelegationState(ctx context.Context, delegate *rp
 	blockLevelWithMinimumBalance := rpc.BlockLevel(delegate.MinDelegated.Level.Level)
 	targetAmount := delegate.MinDelegated.Amount
 
-	fmt.Println(delegate.MinDelegated.Level.Level)
 	if blockLevelWithMinimumBalance == 0 {
 		return nil, constants.ErrDelegateHasNoMinimumDelegatedBalance
 	}
