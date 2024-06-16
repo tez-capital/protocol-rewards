@@ -1,66 +1,116 @@
 package api
 
 import (
-	"fmt"
+	"errors"
+	"log/slog"
 	"strconv"
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/tez-capital/ogun/configuration"
+	"github.com/tez-capital/ogun/constants"
 	"github.com/tez-capital/ogun/core"
+	"github.com/tez-capital/ogun/store"
+	"github.com/trilitech/tzgo/tezos"
 )
 
-func FetchCycle(app *fiber.App, config *configuration.Runtime) {
-	app.Get("/fetch/:cycle", func(c *fiber.Ctx) error {
-		if !config.AllowManualCycleFetching {
-			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-				"error": "manual cycle fetching is not allowed",
+func registerGetDelegationState(app *fiber.App, engine *core.Engine) {
+	app.Get("/delegate/:cycle/:address", func(c *fiber.Ctx) error {
+		cycle, err := strconv.ParseInt(c.Params("cycle"), 10, 64)
+		if err != nil {
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+				"error": err.Error(),
 			})
 		}
-		str := c.Params("cycle")
 
-		cycle, err := strconv.ParseInt(str, 10, 64)
+		address, err := tezos.ParseAddress(c.Params("address"))
 		if err != nil {
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+				"error": err.Error(),
+			})
+		}
+
+		state, err := engine.GetDelegationState(address, cycle)
+		if err != nil {
+			if errors.Is(constants.ErrNotFound, err) {
+				return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
+					"error": "Delegation state not found",
+				})
+			}
 			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
 				"error": err.Error(),
 			})
 		}
 
-		delegatesStates, err := core.FetchAllDelegatesStatesFromCycle(int64(cycle), config)
-		if err != nil {
-			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-				"error": err.Error(),
-			})
-		}
-
-		fmt.Println(delegatesStates)
-
-		// if err = store.StoreDelegatesStates(delegatesStates); err != nil {
-		// 	return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-		// 		"error": err.Error(),
-		// 	})
-		// }
-
-		return c.SendStatus(fiber.StatusOK)
+		return c.JSON(state)
 	})
 }
 
-func registerGetDelegationState(app *fiber.App) {
+func registerGetLastFetchedCycle(app *fiber.App, engine *core.Engine) {
+	app.Get("/last-fetched-cycle", func(c *fiber.Ctx) error {
+		cycle, err := engine.GetLastFetchedCycle()
+		if err != nil {
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+				"error": err.Error(),
+			})
+		}
 
+		return c.JSON(fiber.Map{
+			"cycle": cycle,
+		})
+	})
 }
 
-func RegisterPublicApi(app *fiber.App, config *configuration.Runtime) {
+func registerRewardsSplitMirror(app *fiber.App, engine *core.Engine) {
+	app.Get("/v1/rewards/split/:address/:cycle", func(c *fiber.Ctx) error {
+		cycle, err := strconv.ParseInt(c.Params("cycle"), 10, 64)
+		if err != nil {
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+				"error": err.Error(),
+			})
+		}
 
+		address, err := tezos.ParseAddress(c.Params("address"))
+		if err != nil {
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+				"error": err.Error(),
+			})
+		}
+
+		state, err := engine.GetDelegationState(address, cycle)
+		if err != nil {
+			if errors.Is(constants.ErrNotFound, err) {
+				return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
+					"error": "Delegation state not found",
+				})
+			}
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+				"error": err.Error(),
+			})
+		}
+
+		switch state.Status {
+		case store.DelegationStateStatusMinimumNotAvailable:
+			return c.Status(fiber.StatusNoContent).JSON(fiber.Map{
+				"error": "relevant minimum does not exists",
+			})
+		}
+
+		return c.JSON(state.ToTzktState())
+	})
 }
 
-// app.Get("/delegate/:address", func(c *fiber.Ctx) error {
-// 	address := c.Params("address")
+func CreatePublicApi(config *configuration.Runtime, engine *core.Engine) *fiber.App {
+	app := fiber.New()
+	registerGetDelegationState(app, engine)
+	registerGetLastFetchedCycle(app, engine)
+	registerRewardsSplitMirror(app, engine)
 
-// 	var delegate store.Delegate
-// 	if err := store.DB.Where("address = ?", address).First(&delegate).Error; err != nil {
-// 		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
-// 			"error": "Delegate with address " + address + " not found",
-// 		})
-// 	}
-
-// 	return c.JSON(delegate)
-// })
+	go func() {
+		err := app.Listen(config.Listen)
+		if err != nil {
+			slog.Error("failed to start public api", "error", err.Error())
+		}
+		// FIXME This is suboptimal, ideally we should have a way to wait for the server to start
+	}()
+	return app
+}

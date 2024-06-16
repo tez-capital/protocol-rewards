@@ -1,18 +1,24 @@
 package main
 
 import (
+	"context"
 	"flag"
+	"log/slog"
+	"os"
+	"os/signal"
+	"syscall"
 
-	"github.com/gofiber/fiber/v2"
 	"github.com/tez-capital/ogun/api"
 	"github.com/tez-capital/ogun/configuration"
 	"github.com/tez-capital/ogun/core"
-	"github.com/tez-capital/ogun/store"
+	"github.com/trilitech/tzgo/tezos"
 )
 
 func main() {
 	configPath := flag.String("config", "config.hjson", "path to the configuration file")
 	isTest := flag.Bool("test", false, "run the test")
+
+	ctx, cancel := context.WithCancel(context.Background())
 
 	flag.Parse()
 
@@ -21,24 +27,29 @@ func main() {
 		panic(err)
 	}
 
+	engine, err := core.NewEngine(ctx, config)
+	if err != nil {
+		slog.Error("failed to create engine", "error", err.Error())
+		os.Exit(1)
+	}
+
+	slog.SetLogLoggerLevel(config.LogLevel)
+
 	if *isTest {
-		core.FetchDelegateData("tz1P6WKJu2rcbxKiKRZHKQKmKrpC9TfW1AwM", nil, config)
-		// core.FetchAllDelegatesFromCycle(int64(745), config)
-		// core.FetchAllDelegatesStatesFromCycle(int64(745), config)
+		engine.FetchDelegateDelegationState(ctx, tezos.MustParseAddress("tz1P6WKJu2rcbxKiKRZHKQKmKrpC9TfW1AwM"), 745, true)
+		engine.FetchCycleDelegationStates(ctx, int64(745), false)
 		return
 	}
 
-	app := fiber.New()
+	publicApiApp := api.CreatePublicApi(config, engine)
+	privateApiApp := api.CreatePrivateApi(config, engine)
 
-	store.ConnectDatabase(
-		config.Database.Host,
-		config.Database.User,
-		config.Database.Password,
-		config.Database.Database,
-		config.Database.Port,
-	)
-
-	api.FetchCycle(app, config)
-
-	app.Listen(config.Listen[0])
+	c := make(chan os.Signal, 1)
+	signal.Notify(c, syscall.SIGINT, syscall.SIGTERM)
+	<-c
+	publicApiApp.Shutdown()
+	if privateApiApp != nil {
+		privateApiApp.Shutdown()
+	}
+	cancel()
 }

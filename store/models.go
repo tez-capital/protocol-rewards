@@ -6,6 +6,7 @@ import (
 	"errors"
 
 	"github.com/tez-capital/ogun/common"
+	"github.com/trilitech/tzgo/tezos"
 )
 
 type DelegationStateStatus int
@@ -33,24 +34,90 @@ func (j *DelegationStateBalances) Scan(src interface{}) error {
 	return json.Unmarshal(source, j)
 }
 
+type Address struct {
+	tezos.Address
+}
+
+func (a Address) Value() (driver.Value, error) {
+	return a.Address.String(), nil
+}
+
+func (a *Address) Scan(src interface{}) error {
+	if srcTmp, ok := src.(string); ok {
+		src = []byte(srcTmp)
+	}
+	source, ok := src.([]byte)
+	if !ok {
+		return errors.New("type assertion .([]byte) failed")
+	}
+	addr, err := tezos.ParseAddress(string(source))
+	if err != nil {
+		return err
+	}
+	a.Address = addr
+	return nil
+}
+
+type TzktDelegator struct {
+	Address          tezos.Address `json:"address"`
+	DelegatedBalance int64         `json:"delegatedBalance"`
+}
+
+type TzktLikeDelegationState struct {
+	Cycle                    int64           `json:"cycle"`
+	OwnDelegatedBalance      int64           `json:"ownDelegatedBalance"`
+	ExternalDelegatedBalance int64           `json:"externalDelegatedBalance"`
+	DelegatorsCount          int             `json:"delegatorsCount"`
+	Delegators               []TzktDelegator `json:"delegators"`
+}
+
 type StoredDelegationState struct {
-	Delegate []byte                  `json:"delegate" grom:"primaryKey"`
-	Cycle    int64                   `json:"cycle" grom:"primarykey"`
-	Status   DelegationStateStatus   `json:"status" grom:"primarykey"`
-	Balances DelegationStateBalances `json:"balances" grom:"type:jsonb;default:'{}'"`
+	Delegate Address                 `json:"delegate" gorm:"primaryKey"`
+	Cycle    int64                   `json:"cycle" gorm:"primaryKey"`
+	Status   DelegationStateStatus   `json:"status"`
+	Balances DelegationStateBalances `json:"balances" gorm:"type:jsonb;default:'{}'"`
+}
+
+func (s *StoredDelegationState) OwnDelegatedbalance() int64 {
+	return s.Balances[s.Delegate.Address]
+}
+
+func (s *StoredDelegationState) ExternalDelegatedBalance() int64 {
+	var result int64
+	for addr, balance := range s.Balances {
+		if addr != s.Delegate.Address {
+			result += balance
+		}
+	}
+	return result
+}
+
+func (s *StoredDelegationState) ToTzktState() *TzktLikeDelegationState {
+	delegators := make([]TzktDelegator, 0, len(s.Balances)-1)
+	for addr, balance := range s.Balances {
+		if addr != s.Delegate.Address {
+			delegators = append(delegators, TzktDelegator{
+				Address:          addr,
+				DelegatedBalance: balance,
+			})
+		}
+	}
+
+	result := &TzktLikeDelegationState{
+		Cycle:                    s.Cycle,
+		OwnDelegatedBalance:      s.OwnDelegatedbalance(),
+		ExternalDelegatedBalance: s.ExternalDelegatedBalance(),
+		DelegatorsCount:          len(delegators),
+		Delegators:               delegators,
+	}
+	return result
 }
 
 func CreateStoredDelegationStateFromDelegationState(state *common.DelegationState) *StoredDelegationState {
 	return &StoredDelegationState{
-		Delegate: state.Baker.Encode(),
+		Delegate: Address{state.Baker},
 		Cycle:    state.Cycle,
 		Status:   DelegationStateStatusOk,
 		Balances: DelegationStateBalances(state.DelegatorDelegatedBalances()),
 	}
-}
-
-type FetchedCycles struct {
-	Cycle                 int64 `json:"cycle" gorm:"primaryKey"`
-	StateCount            int   `json:"state_count"`
-	StateWithBalanceCount int   `json:"state_with_balance_count"`
 }

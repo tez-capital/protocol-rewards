@@ -1,0 +1,50 @@
+version: '3.1'
+
+services:
+  pg_delegation_rewards:
+    image: postgres:alpine
+    container_name: pg_delegation_rewards
+    restart: always
+    environment:
+      POSTGRES_USER: ogun
+      POSTGRES_PASSWORD: ogun
+      POSTGRES_DB: ogun
+    volumes:
+      - ./db:/var/lib/postgresql/data
+    networks:
+      - delegation-rewards-network
+
+  delegation_rewards:
+    image: ghcr.io/tez-capital/delegation-rewards:latest
+    container_name: delegation_rewards
+    restart: always
+    volumes:
+      - ./config.hjson:/config.hjson:ro
+    depends_on:
+      - pg_delegation_rewards
+      - node
+    networks:
+      - delegation-rewards-network
+    logging:
+      driver: json-file
+      options:
+        max-size: "200k"  # Maximum file size
+        max-file: "10"    # Maximum number of files
+
+  node:
+    image: ghcr.io/alis-is/xtz.node:latest
+    container_name: node
+    volumes:
+      - ./node:/ascend/apps/node/data/.tezos-node:rw
+    networks:
+      - delegation-rewards-network
+    stop_grace_period: 5m00s
+    logging:
+      driver: json-file
+      options:
+        max-size: "200k"  # Maximum file size
+        max-file: "10"    # Maximum number of files
+
+networks:
+  delegation-rewards-network:
+    driver: bridge

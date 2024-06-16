@@ -1,6 +1,7 @@
 package configuration
 
 import (
+	"log/slog"
 	"os"
 
 	"github.com/hjson/hjson-go/v4"
@@ -19,9 +20,11 @@ func (dc *DatabaseConfiguration) Unwrap() (host string, port string, user string
 }
 
 type Runtime struct {
-	Database  DatabaseConfiguration `json:"database"`
-	Listen    []string              `json:"listen"`
-	Providers []string              `json:"providers"`
+	Database      DatabaseConfiguration `json:"database"`
+	Listen        string                `json:"listen"`
+	PrivateListen string                `json:"private_listen"`
+	Providers     []string              `json:"providers"`
+	LogLevel      slog.Level            `json:"log_level"`
 }
 
 func LoadConfiguration(path string) (*Runtime, error) {

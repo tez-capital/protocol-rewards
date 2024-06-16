@@ -121,11 +121,8 @@ func (d *DelegationState) DelegatedBalance() int64 {
 // includes baker own balance contributing to the total delegated balance
 func (d *DelegationState) DelegatorDelegatedBalances() DelegatedBalances {
 	delegators := make(DelegatedBalances, len(d.balances))
-	for _, balanceInfo := range d.balances {
-		if !balanceInfo.Baker.Equal(d.Baker) { // skip balances delegated to others
-			continue
-		}
-		delegators[balanceInfo.Baker] = balanceInfo.Balance + balanceInfo.UnfrozenDeposits
+	for addr, balanceInfo := range d.balances {
+		delegators[addr] = balanceInfo.Balance + balanceInfo.UnfrozenDeposits
 	}
 	return delegators
 }

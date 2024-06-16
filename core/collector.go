@@ -27,7 +27,6 @@ func attemptWithClients[T interface{}](clients []*rpc.Client, f func(client *rpc
 	// try 3 times
 	for i := 0; i < 3; i++ {
 		for _, client := range clients {
-			slog.Debug("attempting with client", "client", client.BaseURL.Host)
 			result, err = f(client)
 			if err != nil {
 				continue
@@ -36,7 +35,7 @@ func attemptWithClients[T interface{}](clients []*rpc.Client, f func(client *rpc
 		}
 		// sleep for some time
 		sleepTime := (rand.Intn(5)*(i+1) + 5)
-		slog.Debug("[AttemptWithClients] sleeping before retry", "time", sleepTime)
+		time.Sleep(time.Duration(sleepTime) * time.Second)
 	}
 	return result, err
 }
