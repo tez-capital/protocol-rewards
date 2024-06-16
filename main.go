@@ -8,10 +8,10 @@ import (
 	"os/signal"
 	"syscall"
 
-	"blockwatch.cc/tzgo/tezos"
 	"github.com/tez-capital/ogun/api"
 	"github.com/tez-capital/ogun/configuration"
 	"github.com/tez-capital/ogun/core"
+	"github.com/trilitech/tzgo/tezos"
 )
 
 func main() {
