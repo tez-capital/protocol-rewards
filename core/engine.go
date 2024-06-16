@@ -75,7 +75,7 @@ func (e *Engine) fetchDelegateDelegationStateInternal(ctx context.Context, deleg
 		return err
 	case err == constants.ErrDelegateHasNoMinimumDelegatedBalance:
 		storableState = store.CreateStoredDelegationStateFromDelegationState(common.NewDelegationState(delegate))
-		storableState.Cycle = cycle
+		storableState.Cycle = cycle // because it is not available in the delegate
 		storableState.Status = store.DelegationStateStatusMinimumNotAvailable
 	default:
 		storableState = store.CreateStoredDelegationStateFromDelegationState(state)

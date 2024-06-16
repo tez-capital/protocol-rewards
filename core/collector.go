@@ -3,6 +3,7 @@ package core
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log/slog"
 	"math/rand"
 	"net/http"
@@ -136,7 +137,7 @@ func (engine *rpcCollector) GetActiveDelegatesFromCycle(ctx context.Context, cyc
 
 func (engine *rpcCollector) GetDelegateFromCycle(ctx context.Context, cycle int64, delegateAddress tezos.Address) (*rpc.Delegate, error) {
 	blockId := engine.determineLastBlockOfCycle(cycle)
-
+	fmt.Println(blockId)
 	return attemptWithClients(engine.rpcs, func(client *rpc.Client) (*rpc.Delegate, error) {
 		return client.GetDelegate(ctx, delegateAddress, blockId)
 	})
@@ -166,6 +167,9 @@ func (engine *rpcCollector) fetchContractInitialBalanceInfo(ctx context.Context,
 
 // we fetch the previous block to get the state at the beginning of the block we are going to process
 func (engine *rpcCollector) fetchInitialDelegationState(ctx context.Context, delegate *rpc.Delegate, blockWithMinimumId rpc.BlockID) (*common.DelegationState, error) {
+	state := common.NewDelegationState(delegate) // initialization has to be from delegate passed here
+
+	// but we fill the rest from delegate state at the beginning of the block
 	delegate, err := attemptWithClients(engine.rpcs, func(client *rpc.Client) (*rpc.Delegate, error) {
 		return client.GetDelegate(ctx, delegate.Delegate, rpc.NewBlockOffset(blockWithMinimumId, -1))
 	})
@@ -173,7 +177,6 @@ func (engine *rpcCollector) fetchInitialDelegationState(ctx context.Context, del
 		return nil, err
 	}
 
-	state := common.NewDelegationState(delegate)
 	state.AddBalance(delegate.Delegate, common.DelegationStateBalanceInfo{
 		Balance:          delegate.Balance,
 		FrozenDeposits:   delegate.CurrentFrozenDeposits,
@@ -324,6 +327,7 @@ func (engine *rpcCollector) GetDelegationState(ctx context.Context, delegate *rp
 	blockLevelWithMinimumBalance := rpc.BlockLevel(delegate.MinDelegated.Level.Level)
 	targetAmount := delegate.MinDelegated.Amount
 
+	fmt.Println(delegate.MinDelegated.Level.Level)
 	if blockLevelWithMinimumBalance == 0 {
 		return nil, constants.ErrDelegateHasNoMinimumDelegatedBalance
 	}
