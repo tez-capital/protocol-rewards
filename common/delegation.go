@@ -6,6 +6,8 @@ import (
 	"github.com/trilitech/tzgo/tezos"
 )
 
+type DelegatedBalances map[tezos.Address]int64
+
 type DelegationStateBalanceInfo struct {
 	Balance          int64         `json:"balance"`
 	FrozenDeposits   int64         `json:"frozen_deposits"`
@@ -117,8 +119,8 @@ func (d *DelegationState) DelegatedBalance() int64 {
 }
 
 // includes baker own balance contributing to the total delegated balance
-func (d *DelegationState) DelegatorDelegatedBalances() map[tezos.Address]int64 {
-	delegators := make(map[tezos.Address]int64, len(d.balances))
+func (d *DelegationState) DelegatorDelegatedBalances() DelegatedBalances {
+	delegators := make(DelegatedBalances, len(d.balances))
 	for _, balanceInfo := range d.balances {
 		if !balanceInfo.Baker.Equal(d.Baker) { // skip balances delegated to others
 			continue

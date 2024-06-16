@@ -22,7 +22,7 @@ func getTransport() *test.TestTransport {
 func TestGetActiveDelegates(t *testing.T) {
 	assert := assert.New(t)
 
-	collector, err := NewDefaultRpcCollector(defaultCtx, []string{"https://eu.rpc.tez.capital/"}, getTransport())
+	collector, err := newRpcCollector(defaultCtx, []string{"https://eu.rpc.tez.capital/"}, getTransport())
 	assert.Nil(err)
 
 	delegates, err := collector.GetActiveDelegatesFromCycle(defaultCtx, 745)
@@ -35,7 +35,7 @@ func TestGetDelegationStateNoStaking(t *testing.T) {
 
 	cycle := int64(745)
 
-	collector, err := NewDefaultRpcCollector(defaultCtx, []string{"https://eu.rpc.tez.capital/"}, getTransport())
+	collector, err := newRpcCollector(defaultCtx, []string{"https://eu.rpc.tez.capital/"}, getTransport())
 	assert.Nil(err)
 
 	delegates, err := collector.GetActiveDelegatesFromCycle(defaultCtx, cycle)

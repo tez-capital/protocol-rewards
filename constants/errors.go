@@ -3,7 +3,8 @@ package constants
 import "errors"
 
 var (
-	ErrSubsystemNotFound = errors.New("subsystem not found")
+	ErrNotFound          = errors.New("not found")
+	ErrCycleDidNotEndYet = errors.New("cycle did not end yet")
 
 	ErrDelegateHasNoMinimumDelegatedBalance = errors.New("delegate has no minimum delegated balance")
 

@@ -44,6 +44,14 @@ func FetchCycle(app *fiber.App, config *configuration.Runtime) {
 	})
 }
 
+func registerGetDelegationState(app *fiber.App) {
+
+}
+
+func RegisterPublicApi(app *fiber.App, config *configuration.Runtime) {
+
+}
+
 // app.Get("/delegate/:address", func(c *fiber.Ctx) error {
 // 	address := c.Params("address")
 

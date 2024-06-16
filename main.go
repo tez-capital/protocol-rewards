@@ -11,7 +11,6 @@ import (
 )
 
 func main() {
-
 	configPath := flag.String("config", "config.hjson", "path to the configuration file")
 	isTest := flag.Bool("test", false, "run the test")
 

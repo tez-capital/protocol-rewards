@@ -7,9 +7,9 @@ import (
 	"github.com/samber/lo"
 )
 
-func runInBatches[T any](ctx context.Context, collection []T, bufferSize int, f func(ctx context.Context, item T, mtx *sync.Mutex) (cancel bool)) error {
+func runInBatches[T any](ctx context.Context, collection []T, bufferSize int, f func(ctx context.Context, item T, mtx *sync.RWMutex) (cancel bool)) error {
 	ch := lo.SliceToChannel(bufferSize, collection)
-	mtx := sync.Mutex{}
+	mtx := sync.RWMutex{}
 
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()

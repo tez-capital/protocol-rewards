@@ -1,12 +1,9 @@
 package configuration
 
 import (
-	"encoding/json"
 	"os"
 
 	"github.com/hjson/hjson-go/v4"
-	"github.com/tez-capital/ogun/configuration/tezos"
-	"github.com/tez-capital/ogun/constants"
 )
 
 type DatabaseConfiguration struct {
@@ -17,27 +14,14 @@ type DatabaseConfiguration struct {
 	Database string `json:"database"`
 }
 
-func (dc *DatabaseConfiguration) Unwrap() (string, string, string, string, string) {
+func (dc *DatabaseConfiguration) Unwrap() (host string, port string, user string, pass string, database string) {
 	return dc.Host, dc.Port, dc.User, dc.Password, dc.Database
 }
 
-type EventSelector struct {
-	Source string `json:"source"`
-	Event  string `json:"event"`
-}
-
-type ConnectConfiguration struct {
-	Forward []EventSelector `json:"forward"`
-	Consume []EventSelector `json:"consume"`
-}
-
 type Runtime struct {
-	Environment              string                     `json:"environment"`
-	Subsystems               map[string]json.RawMessage `json:"subsystems"`
-	Database                 DatabaseConfiguration      `json:"database"`
-	Listen                   []string                   `json:"listen"`
-	BatchSize                int                        `json:"batch_size"`
-	AllowManualCycleFetching bool                       `json:"allow_manual_cycle_fetching"`
+	Database  DatabaseConfiguration `json:"database"`
+	Listen    []string              `json:"listen"`
+	Providers []string              `json:"providers"`
 }
 
 func LoadConfiguration(path string) (*Runtime, error) {
@@ -54,11 +38,4 @@ func LoadConfiguration(path string) (*Runtime, error) {
 	}
 
 	return &runtimeConfig, nil
-}
-
-func (r *Runtime) GetTezosConfiguration() (*tezos.TezosRpcConfiguration, error) {
-	if tezosConfiguration, ok := r.Subsystems["tezos"]; ok {
-		return tezos.LoadTezosConfiguration(tezosConfiguration)
-	}
-	return nil, constants.ErrSubsystemNotFound
 }
