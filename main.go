@@ -11,7 +11,6 @@ import (
 	"github.com/tez-capital/ogun/api"
 	"github.com/tez-capital/ogun/configuration"
 	"github.com/tez-capital/ogun/core"
-	"github.com/trilitech/tzgo/tezos"
 )
 
 func main() {
@@ -36,8 +35,8 @@ func main() {
 	slog.SetLogLoggerLevel(config.LogLevel)
 
 	if *isTest {
-		engine.FetchDelegateDelegationState(ctx, tezos.MustParseAddress("tz1P6WKJu2rcbxKiKRZHKQKmKrpC9TfW1AwM"), 745, true)
-		engine.FetchCycleDelegationStates(ctx, int64(745), false)
+		//engine.FetchDelegateDelegationState(ctx, tezos.MustParseAddress("tz1P6WKJu2rcbxKiKRZHKQKmKrpC9TfW1AwM"), 745, true)
+		engine.FetchCycleDelegationStates(ctx, int64(746), false)
 		return
 	}
 
