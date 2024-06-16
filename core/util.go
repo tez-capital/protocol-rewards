@@ -14,40 +14,35 @@ func runInBatches[T any](ctx context.Context, collection []T, bufferSize int, f 
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
-	var wg sync.WaitGroup
-	wg.Add(len(collection))
 	for {
-		var batchWg sync.WaitGroup
 		items, _, _, ok := lo.Buffer(ch, bufferSize)
-		batchWg.Add(len(items))
+		var wg sync.WaitGroup
+		wg.Add(len(items))
 		for _, item := range items {
 			go func(item T) {
 				defer wg.Done()
-				defer batchWg.Done()
 
 				if shouldCancel := f(ctx, item, &mtx); shouldCancel {
 					cancel()
 				}
 			}(item)
 		}
-		batchWg.Wait()
+		done := make(chan struct{})
+		go func() {
+			wg.Wait()
+			close(done)
+		}()
+
+		select {
+		case <-done:
+		case <-ctx.Done():
+			return ctx.Err()
+		}
 		if !ok {
 			break
 		}
 	}
-
-	done := make(chan struct{})
-	go func() {
-		wg.Wait()
-		close(done)
-	}()
-
-	select {
-	case <-done:
-		return nil
-	case <-ctx.Done():
-		return ctx.Err()
-	}
+	return nil
 }
 
 func abs(x int64) int64 {
