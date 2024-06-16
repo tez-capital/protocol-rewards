@@ -19,3 +19,7 @@ what to ask to NL engineers?
 - frozen deposits - actual vs initial amount?
 - wtf `ERROR failed to find the exact balance delegate=tz1ZY5ug2KcAiaVfxhDKtKLx8U5zEgsxgdjV level_info="{Level:5799936 LevelPosition:5799935 Cycle:745 CyclePosition:24575 ExpectedCommitment:true VotingPeriod:0 VotingPeriodPosition:0}" target=121801316358 actual=128780046786`
 - looks like freezer deposits are ignored
+
+it may happen that when we lookup min balance for cycle X it wont be available and we have to fetch it from previous cycle???
+- overstake from previous block or current?
+- is overstake caused by frozen deposits or other fields?
