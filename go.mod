@@ -7,7 +7,7 @@ require (
 	github.com/hjson/hjson-go/v4 v4.4.0
 	github.com/samber/lo v1.39.0
 	github.com/stretchr/testify v1.9.0
-	github.com/trilitech/tzgo v1.19.6
+	github.com/trilitech/tzgo v1.19.7-0.20240615084153-32cae2559148
 	gorm.io/driver/postgres v1.5.9
 	gorm.io/gorm v1.25.10
 )

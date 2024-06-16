@@ -1,8 +1,14 @@
 package core
 
 import (
+	"context"
+
 	"github.com/tez-capital/ogun/common"
 	"github.com/trilitech/tzgo/tezos"
+)
+
+var (
+	defaultCtx context.Context = context.Background()
 )
 
 type OgunBalanceUpdate struct {

@@ -26,7 +26,7 @@ func getCollector(config *configuration.Runtime) (*DefaultRpcCollector, error) {
 	}
 
 	rpcUrl := "https://eu.rpc.tez.capital/"
-	collector, err := NewDefaultRpcCollector(rpcUrl, nil)
+	collector, err := NewDefaultRpcCollector(defaultCtx, []string{rpcUrl}, nil)
 	if err != nil {
 		slog.Error("failed to initialize collector", "error", err)
 		return nil, err

@@ -22,7 +22,7 @@ func getTransport() *test.TestTransport {
 func TestGetActiveDelegates(t *testing.T) {
 	assert := assert.New(t)
 
-	collector, err := NewDefaultRpcCollector("https://eu.rpc.tez.capital/", getTransport())
+	collector, err := NewDefaultRpcCollector(defaultCtx, []string{"https://eu.rpc.tez.capital/"}, getTransport())
 	assert.Nil(err)
 
 	delegates, err := collector.GetActiveDelegatesFromCycle(defaultCtx, 745)
@@ -30,12 +30,12 @@ func TestGetActiveDelegates(t *testing.T) {
 	assert.Equal(354, len(delegates))
 }
 
-func TestGetDelegationState(t *testing.T) {
+func TestGetDelegationStateNoStaking(t *testing.T) {
 	assert := assert.New(t)
 
 	cycle := int64(745)
 
-	collector, err := NewDefaultRpcCollector("https://eu.rpc.tez.capital/", getTransport())
+	collector, err := NewDefaultRpcCollector(defaultCtx, []string{"https://eu.rpc.tez.capital/"}, getTransport())
 	assert.Nil(err)
 
 	delegates, err := collector.GetActiveDelegatesFromCycle(defaultCtx, cycle)
@@ -43,9 +43,8 @@ func TestGetDelegationState(t *testing.T) {
 
 	channels := make(chan error, len(delegates))
 	var wg sync.WaitGroup
+	wg.Add(len(delegates))
 	for _, addr := range delegates {
-		wg.Add(1)
-
 		go func(addr tezos.Address) {
 			defer wg.Done()
 			delegate, err := collector.GetDelegateFromCycle(defaultCtx, cycle, addr)
