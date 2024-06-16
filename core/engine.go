@@ -2,7 +2,6 @@ package core
 
 import (
 	"context"
-	"fmt"
 	"log/slog"
 	"sync"
 	"time"
@@ -120,7 +119,6 @@ func (e *Engine) FetchCycleDelegationStates(ctx context.Context, cycle int64, fo
 		e.logger.Error("failed to fetch active delegates from cycle", "cycle", cycle, "error", err.Error())
 		return err
 	}
-	fmt.Println("delegates", len(delegates))
 
 	err = runInBatches(ctx, delegates, constants.OGUN_DELEGATE_FETCH_BATCH_SIZE, func(ctx context.Context, item tezos.Address, mtx *sync.RWMutex) bool {
 		err := e.fetchDelegateDelegationStateInternal(ctx, item, cycle, forceFetch)
