@@ -11,7 +11,7 @@ import (
 )
 
 func registerFetchCycle(app *fiber.App, engine *core.Engine) {
-	app.Get("/cycle/:cycle", func(c *fiber.Ctx) error {
+	app.Get("/fetch/cycle/:cycle", func(c *fiber.Ctx) error {
 		cycle, err := strconv.ParseInt(c.Params("cycle"), 10, 64)
 		if err != nil {
 			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
@@ -27,7 +27,7 @@ func registerFetchCycle(app *fiber.App, engine *core.Engine) {
 }
 
 func registerFetchDelegate(app *fiber.App, engine *core.Engine) {
-	app.Get("/delegate/:cycle/:address", func(c *fiber.Ctx) error {
+	app.Get("/fetch/delegate/:cycle/:address", func(c *fiber.Ctx) error {
 		cycle, err := strconv.ParseInt(c.Params("cycle"), 10, 64)
 		if err != nil {
 			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{

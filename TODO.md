@@ -19,3 +19,9 @@
 - [ ] test suite
   - [ ] add test more precise test for engine based on test data from test/data/745.zip
   
+- [ ] deploy
+  - [ ] prepare nginx config (I'll do this)
+
+- [ ] found bugs
+  - [ ] tz1gXWW1q8NcXtVy2oVVcc2s4XKNzv9CryWd - 746 - minimum not found
+  - [ ] tz1bZ8vsMAXmaWEV7FRnyhcuUs2fYMaQ6Hkk - 746 - minimum not found
