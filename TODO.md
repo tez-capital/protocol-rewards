@@ -1,9 +1,9 @@
 - [ ] Core features
   - [ ] over staking (waiting for NL engineers)
 
-- [ ] logs
-  - [ ] in core package log errors in engine.go only
-  - [ ] everything else in core package can be logged with debug level
+- [x] logs
+  - [x] in core package log errors in engine.go only
+  - [x] everything else in core package can be logged with debug level
 
 - [ ] polish flags
   - [ ] log level

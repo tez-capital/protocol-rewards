@@ -51,7 +51,7 @@ func initRpcClient(ctx context.Context, rpcUrl string, transport http.RoundTripp
 
 	rpcClient, err := rpc.NewClient(rpcUrl, &client)
 	if err != nil {
-		slog.Error("failed to create rpc client", "url", rpcUrl, "error", err.Error())
+		slog.Debug("failed to create rpc client", "url", rpcUrl, "error", err.Error())
 		return nil, err
 	}
 	for i := 0; i < 3; i++ {
@@ -59,11 +59,11 @@ func initRpcClient(ctx context.Context, rpcUrl string, transport http.RoundTripp
 		if err == nil {
 			break
 		}
-		slog.Info("failed to init rpc client, retrying", "url", rpcUrl, "error", err.Error())
+		slog.Debug("failed to init rpc client, retrying", "url", rpcUrl, "error", err.Error())
 		time.Sleep(time.Duration(rand.Intn(5)+5) * time.Second)
 	}
 	if err != nil {
-		slog.Error("failed to init rpc client", "url", rpcUrl, "error", err.Error())
+		slog.Debug("failed to init rpc client", "url", rpcUrl, "error", err.Error())
 		return nil, err
 	}
 	return rpcClient, nil
@@ -191,7 +191,7 @@ func (engine *rpcCollector) fetchInitialDelegationState(ctx context.Context, del
 	runInBatches(ctx, toCollect, constants.CONTRACT_FETCH_BATCH_SIZE, func(ctx context.Context, address tezos.Address, mtx *sync.RWMutex) (cancel bool) {
 		balanceInfo, err := engine.fetchContractInitialBalanceInfo(ctx, address, blockWithMinimumId)
 		if err != nil {
-			slog.Error("failed to fetch contract balance info", "address", address.String(), "error", err)
+			slog.Debug("failed to fetch contract balance info", "address", address.String(), "error", err)
 			return
 		}
 		mtx.Lock()
@@ -233,7 +233,7 @@ func (engine *rpcCollector) getBlockBalanceUpdates(ctx context.Context, state *c
 				if content.Kind() == tezos.OpTypeDelegation {
 					content, ok := content.(*rpc.Delegation)
 					if !ok {
-						slog.Error("delegation op with invalid content", "operation", operation.Hash)
+						slog.Debug("delegation op with invalid content", "operation", operation.Hash)
 					}
 
 					if !state.HasContractBalanceInfo(content.Source) {
@@ -392,7 +392,7 @@ func (engine *rpcCollector) GetDelegationState(ctx context.Context, delegate *rp
 	}
 
 	if !found {
-		slog.Error("failed to find the exact balance", "delegate", delegate.Delegate.String(), "level_info", delegate.MinDelegated.Level, "target", targetAmount, "actual", state.DelegatedBalance())
+		slog.Debug("failed to find the exact balance", "delegate", delegate.Delegate.String(), "level_info", delegate.MinDelegated.Level, "target", targetAmount, "actual", state.DelegatedBalance())
 		return nil, constants.ErrMinimumDelegatedBalanceNotFound
 	}
 	return state, nil

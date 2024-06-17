@@ -24,11 +24,13 @@ type Engine struct {
 func NewEngine(ctx context.Context, config *configuration.Runtime) (*Engine, error) {
 	collector, err := newRpcCollector(ctx, config.Providers, nil)
 	if err != nil {
+		slog.Error("failed to create new RPC Collector", "error", err)
 		return nil, err
 	}
 
 	store, err := store.NewStore(config)
 	if err != nil {
+		slog.Error("failed to create new store", "error", err)
 		return nil, err
 	}
 
@@ -65,6 +67,7 @@ func (e *Engine) fetchDelegateDelegationStateInternal(ctx context.Context, deleg
 
 	delegate, err := e.collector.GetDelegateFromCycle(ctx, cycle, delegateAddress)
 	if err != nil {
+		slog.Debug("failed to get delegate from", "cycle", cycle, "delegateAddress", delegateAddress, "error", err)
 		return err
 	}
 
@@ -88,6 +91,7 @@ func (e *Engine) FetchDelegateDelegationState(ctx context.Context, delegateAddre
 	slog.Info("fetching delegate delegation state", "cycle", cycle, "delegate", delegateAddress.String(), "force_fetch", forceFetch)
 	lastCompletedCycle, err := e.collector.GetLastCompletedCycle(defaultCtx)
 	if err != nil {
+		slog.Error("failed to get last completed cycle", "error", err)
 		return err
 	}
 	if cycle > lastCompletedCycle {
