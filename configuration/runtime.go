@@ -1,7 +1,6 @@
 package configuration
 
 import (
-	"fmt"
 	"log/slog"
 	"os"
 
@@ -44,7 +43,7 @@ func LoadConfiguration(path string) (*Runtime, error) {
 	}
 
 	if err = godotenv.Load(); err != nil {
-		return nil, fmt.Errorf("error loading .env file: %v", err)
+		slog.Debug("error loading .env file", "error", err)
 	}
 
 	runtimeConfig.LogLevel = getLogLevel(os.Getenv(constants.LOG_LEVEL))
