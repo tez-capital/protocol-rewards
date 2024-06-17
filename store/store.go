@@ -22,6 +22,7 @@ func NewStore(config *configuration.Runtime) (*Store, error) {
 	slog.Debug("connecting to database", "host", host, "port", port, "user", user, "database", database)
 
 	gormLogger := logger.Default.LogMode(logger.Silent)
+
 	if config.LogLevel == slog.LevelDebug {
 		gormLogger = logger.Default.LogMode(logger.Info)
 	}

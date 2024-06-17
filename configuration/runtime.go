@@ -1,10 +1,13 @@
 package configuration
 
 import (
+	"fmt"
 	"log/slog"
 	"os"
 
 	"github.com/hjson/hjson-go/v4"
+	"github.com/joho/godotenv"
+	"github.com/tez-capital/ogun/constants"
 )
 
 type DatabaseConfiguration struct {
@@ -24,7 +27,7 @@ type Runtime struct {
 	Listen        string                `json:"listen"`
 	PrivateListen string                `json:"private_listen"`
 	Providers     []string              `json:"providers"`
-	LogLevel      slog.Level            `json:"log_level"`
+	LogLevel      slog.Level            `json:"-"`
 }
 
 func LoadConfiguration(path string) (*Runtime, error) {
@@ -40,5 +43,24 @@ func LoadConfiguration(path string) (*Runtime, error) {
 		return nil, err
 	}
 
+	if err = godotenv.Load(); err != nil {
+		return nil, fmt.Errorf("error loading .env file: %v", err)
+	}
+
+	runtimeConfig.LogLevel = getLogLevel(os.Getenv(constants.LOG_LEVEL))
+
 	return &runtimeConfig, nil
+}
+
+func getLogLevel(level string) slog.Level {
+	switch level {
+	case "debug":
+		return slog.LevelDebug
+	case "warn":
+		return slog.LevelWarn
+	case "error":
+		return slog.LevelError
+	default:
+		return slog.LevelInfo
+	}
 }
