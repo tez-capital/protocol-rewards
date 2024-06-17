@@ -6,7 +6,7 @@
   - [x] everything else in core package can be logged with debug level
 
 - [ ] polish flags
-  - [ ] log level
+  - [x] log level
   - [ ] different kind of tests
 - [ ] take listen and listen private from env instead of config
 

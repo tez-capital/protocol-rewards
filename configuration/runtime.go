@@ -43,15 +43,15 @@ func LoadConfiguration(path string) (*Runtime, error) {
 	}
 
 	if err = godotenv.Load(); err != nil {
-		slog.Debug("error loading .env file", "error", err)
+		slog.Info("error loading .env file, loading env variables directly from environment or if not found load the defaults", "error", err)
 	}
 
-	runtimeConfig.LogLevel = getLogLevel(os.Getenv(constants.LOG_LEVEL))
+	runtimeConfig.LogLevel = GetLogLevel(os.Getenv(constants.LOG_LEVEL))
 
 	return &runtimeConfig, nil
 }
 
-func getLogLevel(level string) slog.Level {
+func GetLogLevel(level string) slog.Level {
 	switch level {
 	case "debug":
 		return slog.LevelDebug

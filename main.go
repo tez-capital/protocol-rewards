@@ -16,6 +16,7 @@ import (
 
 func main() {
 	configPath := flag.String("config", "config.hjson", "path to the configuration file")
+	logLevel := flag.String("log", "", "set the desired log level")
 	isTest := flag.Bool("test", false, "run the test")
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -25,6 +26,10 @@ func main() {
 	config, err := configuration.LoadConfiguration(*configPath)
 	if err != nil {
 		panic(err)
+	}
+
+	if *logLevel != "" {
+		config.LogLevel = configuration.GetLogLevel(*logLevel)
 	}
 
 	engine, err := core.NewEngine(ctx, config)
