@@ -297,7 +297,7 @@ func (engine *rpcCollector) getBlockBalanceUpdates(ctx context.Context, state *c
 		}
 	})
 
-	// for some reason updates causes deposits are not considered ¯\_(ツ)_/¯
+	// for some reason updates caused by unstake deposits -> deposits are not considered ¯\_(ツ)_/¯
 	preprocessedBlockBalanceUpdates := make([]OgunBalanceUpdate, 0, len(blockBalanceUpdates))
 	skip := false
 	for i, update := range blockBalanceUpdates {
@@ -305,7 +305,7 @@ func (engine *rpcCollector) getBlockBalanceUpdates(ctx context.Context, state *c
 			skip = false
 			continue
 		}
-		if i+1 < len(blockBalanceUpdates) {
+		if update.Kind == "freezer" && i+1 < len(blockBalanceUpdates) {
 			next := blockBalanceUpdates[i+1]
 			if update.Amount < 0 && next.Kind == "freezer" && next.Category == "deposits" {
 				skip = true
@@ -314,7 +314,7 @@ func (engine *rpcCollector) getBlockBalanceUpdates(ctx context.Context, state *c
 		}
 		preprocessedBlockBalanceUpdates = append(preprocessedBlockBalanceUpdates, update)
 	}
-	// end for some reason updates causes deposits are not considered  ¯\_(ツ)_/¯
+	//  for some reason updates caused by unstake deposits -> deposits are not considered ¯\_(ツ)_/¯
 
 	// block balance updates last
 	allBalanceUpdates = allBalanceUpdates.Add(preprocessedBlockBalanceUpdates...)
@@ -330,13 +330,15 @@ func (engine *rpcCollector) GetDelegationState(ctx context.Context, delegate *rp
 		return nil, constants.ErrDelegateHasNoMinimumDelegatedBalance
 	}
 
+	slog.Debug("fetching delegation state", "blockLevelWithMinimumBalance", blockLevelWithMinimumBalance, "delegate", delegate.Delegate.String())
+
 	state, err := engine.fetchInitialDelegationState(ctx, delegate, blockLevelWithMinimumBalance)
 	if err != nil {
 		return nil, err
 	}
 
 	// we may match at the beginning of the block, we do not have to further process
-	if state.DelegatedBalance() == targetAmount {
+	if abs(state.DelegatedBalance()-targetAmount) <= 1 {
 		state.CreatedAt = common.DelegationStateCreationInfo{
 			Level: blockLevelWithMinimumBalance.Int64(),
 			Kind:  common.CreatedAtBlockBeginning,
@@ -376,7 +378,7 @@ func (engine *rpcCollector) GetDelegationState(ctx context.Context, delegate *rp
 
 		}
 
-		//fmt.Println(balanceUpdate.Amount, "====>", state.DelegatedBalance(), targetAmount, state.DelegatedBalance()-targetAmount)
+		slog.Debug("balance update", "address", balanceUpdate.Address.String(), "delegated_balance", state.DelegatedBalance(), "amount", balanceUpdate.Amount, "target_amount", targetAmount, "diff", state.DelegatedBalance()-targetAmount)
 
 		if abs(state.DelegatedBalance()-targetAmount) <= 1 {
 			found = true
@@ -392,7 +394,6 @@ func (engine *rpcCollector) GetDelegationState(ctx context.Context, delegate *rp
 	}
 
 	if !found {
-		slog.Debug("failed to find the exact balance", "delegate", delegate.Delegate.String(), "level_info", delegate.MinDelegated.Level, "target", targetAmount, "actual", state.DelegatedBalance())
 		return nil, constants.ErrMinimumDelegatedBalanceNotFound
 	}
 	return state, nil

@@ -22,6 +22,7 @@
 - [ ] deploy
   - [ ] prepare nginx config (I'll do this)
 
-- [ ] found bugs
-  - [ ] tz1gXWW1q8NcXtVy2oVVcc2s4XKNzv9CryWd - 746 - minimum not found
-  - [ ] tz1bZ8vsMAXmaWEV7FRnyhcuUs2fYMaQ6Hkk - 746 - minimum not found
+- [x] found bugs
+  - [x] tz1gXWW1q8NcXtVy2oVVcc2s4XKNzv9CryWd - 746 - minimum not found
+  - [x] tz1bZ8vsMAXmaWEV7FRnyhcuUs2fYMaQ6Hkk - 746 - minimum not found
+  - [ ] NOTE: waiting for confirmation from NL engineers (should be tomorrow)

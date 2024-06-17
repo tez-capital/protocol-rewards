@@ -1,14 +1,13 @@
 package core
 
 import (
-	"context"
-
 	"github.com/tez-capital/ogun/common"
 	"github.com/trilitech/tzgo/tezos"
 )
 
 var (
-	defaultCtx context.Context = context.Background()
+	defaultFetchOptions = FetchOptions{}
+	DebugFetchOptions   = FetchOptions{Force: true, Debug: true}
 )
 
 type OgunBalanceUpdate struct {
@@ -35,4 +34,9 @@ func (e OgunBalanceUpdates) Len() int {
 
 func (e OgunBalanceUpdates) Add(updates ...OgunBalanceUpdate) OgunBalanceUpdates {
 	return append(e, updates...)
+}
+
+type FetchOptions struct {
+	Force bool
+	Debug bool
 }

@@ -41,8 +41,10 @@ func main() {
 	slog.SetLogLoggerLevel(config.LogLevel)
 
 	if *isTest {
-		engine.FetchDelegateDelegationState(ctx, tezos.MustParseAddress("tz1P6WKJu2rcbxKiKRZHKQKmKrpC9TfW1AwM"), 745, true)
-		engine.FetchCycleDelegationStates(ctx, int64(746), false)
+		engine.FetchDelegateDelegationState(ctx, tezos.MustParseAddress("tz1gXWW1q8NcXtVy2oVVcc2s4XKNzv9CryWd"), 746, &core.DebugFetchOptions)
+		engine.FetchDelegateDelegationState(ctx, tezos.MustParseAddress("tz1bZ8vsMAXmaWEV7FRnyhcuUs2fYMaQ6Hkk"), 746, &core.DebugFetchOptions)
+		engine.FetchDelegateDelegationState(ctx, tezos.MustParseAddress("tz1ZY5ug2KcAiaVfxhDKtKLx8U5zEgsxgdjV"), 745, &core.DebugFetchOptions)
+		// engine.FetchCycleDelegationStates(ctx, int64(745), true)
 		return
 	}
 

@@ -1,6 +1,7 @@
 package core
 
 import (
+	"context"
 	"net/http"
 	"sync"
 	"testing"
@@ -9,6 +10,10 @@ import (
 	"github.com/tez-capital/ogun/constants"
 	"github.com/tez-capital/ogun/test"
 	"github.com/trilitech/tzgo/tezos"
+)
+
+var (
+	defaultCtx context.Context = context.Background()
 )
 
 func getTransport() *test.TestTransport {

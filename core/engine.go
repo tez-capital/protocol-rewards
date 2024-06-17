@@ -2,6 +2,7 @@ package core
 
 import (
 	"context"
+	"errors"
 	"log/slog"
 	"sync"
 	"time"
@@ -47,13 +48,17 @@ func NewEngine(ctx context.Context, config *configuration.Runtime) (*Engine, err
 	return result, nil
 }
 
-func (e *Engine) fetchDelegateDelegationStateInternal(ctx context.Context, delegateAddress tezos.Address, cycle int64, forceFetch bool) error {
-	if !forceFetch && e.state.IsDelegateBeingFetched(cycle, delegateAddress) {
+func (e *Engine) fetchDelegateDelegationStateInternal(ctx context.Context, delegateAddress tezos.Address, cycle int64, options *FetchOptions) error {
+	if options == nil {
+		options = &defaultFetchOptions
+	}
+
+	if !options.Force && e.state.IsDelegateBeingFetched(cycle, delegateAddress) {
 		slog.Debug("delegate delegation state is already being fetched", "cycle", cycle, "delegate", delegateAddress.String())
 		return nil
 	}
 
-	if !forceFetch {
+	if !options.Force {
 		_, err := e.store.GetDelegationState(delegateAddress, cycle)
 		if err == nil { // already fetched
 			slog.Debug("delegate delegation state already fetched", "cycle", cycle, "delegate", delegateAddress.String())
@@ -75,6 +80,9 @@ func (e *Engine) fetchDelegateDelegationStateInternal(ctx context.Context, deleg
 	var storableState *store.StoredDelegationState
 	switch {
 	case err != nil && err != constants.ErrDelegateHasNoMinimumDelegatedBalance:
+		if options.Debug && errors.Is(err, constants.ErrMinimumDelegatedBalanceNotFound) {
+			panic(err)
+		}
 		return err
 	case err == constants.ErrDelegateHasNoMinimumDelegatedBalance:
 		storableState = store.CreateStoredDelegationStateFromDelegationState(common.NewDelegationState(delegate))
@@ -87,9 +95,9 @@ func (e *Engine) fetchDelegateDelegationStateInternal(ctx context.Context, deleg
 	return e.store.StoreDelegationState(storableState)
 }
 
-func (e *Engine) FetchDelegateDelegationState(ctx context.Context, delegateAddress tezos.Address, cycle int64, forceFetch bool) error {
-	slog.Info("fetching delegate delegation state", "cycle", cycle, "delegate", delegateAddress.String(), "force_fetch", forceFetch)
-	lastCompletedCycle, err := e.collector.GetLastCompletedCycle(defaultCtx)
+func (e *Engine) FetchDelegateDelegationState(ctx context.Context, delegateAddress tezos.Address, cycle int64, options *FetchOptions) error {
+	slog.Info("fetching delegate delegation state", "cycle", cycle, "delegate", delegateAddress.String(), "force_fetch", options)
+	lastCompletedCycle, err := e.collector.GetLastCompletedCycle(ctx)
 	if err != nil {
 		slog.Error("failed to get last completed cycle", "error", err)
 		return err
@@ -98,7 +106,7 @@ func (e *Engine) FetchDelegateDelegationState(ctx context.Context, delegateAddre
 		return constants.ErrCycleDidNotEndYet
 	}
 
-	if err := e.fetchDelegateDelegationStateInternal(ctx, delegateAddress, cycle, forceFetch); err != nil {
+	if err := e.fetchDelegateDelegationStateInternal(ctx, delegateAddress, cycle, options); err != nil {
 		e.logger.Error("failed to fetch delegate delegation state", "cycle", cycle, "delegate", delegateAddress.String(), "error", err.Error())
 		return err
 	}
@@ -106,9 +114,10 @@ func (e *Engine) FetchDelegateDelegationState(ctx context.Context, delegateAddre
 	return nil
 }
 
-func (e *Engine) FetchCycleDelegationStates(ctx context.Context, cycle int64, forceFetch bool) error {
-	slog.Info("fetching cycle delegation states", "cycle", cycle, "force_fetch", forceFetch)
-	lastCompletedCycle, err := e.collector.GetLastCompletedCycle(defaultCtx)
+func (e *Engine) FetchCycleDelegationStates(ctx context.Context, cycle int64, options *FetchOptions) error {
+
+	slog.Info("fetching cycle delegation states", "cycle", cycle, "options", options)
+	lastCompletedCycle, err := e.collector.GetLastCompletedCycle(ctx)
 	if err != nil {
 		e.logger.Error("failed to fetch last completed cycle number", "error", err.Error())
 		return err
@@ -118,14 +127,14 @@ func (e *Engine) FetchCycleDelegationStates(ctx context.Context, cycle int64, fo
 		return constants.ErrCycleDidNotEndYet
 	}
 
-	delegates, err := e.collector.GetActiveDelegatesFromCycle(defaultCtx, cycle)
+	delegates, err := e.collector.GetActiveDelegatesFromCycle(ctx, cycle)
 	if err != nil {
 		e.logger.Error("failed to fetch active delegates from cycle", "cycle", cycle, "error", err.Error())
 		return err
 	}
 
 	err = runInBatches(ctx, delegates, constants.OGUN_DELEGATE_FETCH_BATCH_SIZE, func(ctx context.Context, item tezos.Address, mtx *sync.RWMutex) bool {
-		err := e.fetchDelegateDelegationStateInternal(ctx, item, cycle, forceFetch)
+		err := e.fetchDelegateDelegationStateInternal(ctx, item, cycle, options)
 		if err != nil {
 			// warn or error??
 			e.logger.Warn("failed to fetch delegate delegation state", "cycle", cycle, "delegate", item.String(), "error", err.Error())
@@ -157,7 +166,7 @@ func (e *Engine) fetchAutomatically() {
 			default:
 				time.Sleep(constants.OGUN_CYCLE_FETCH_FREQUENCY_MINUTES * time.Minute)
 
-				lastCompletedCycle, err := e.collector.GetLastCompletedCycle(defaultCtx)
+				lastCompletedCycle, err := e.collector.GetLastCompletedCycle(e.ctx)
 				if err != nil {
 					e.logger.Error("failed to fetch last completed cycle number", "error", err.Error())
 					return
@@ -183,7 +192,7 @@ func (e *Engine) fetchAutomatically() {
 				}
 
 				for cycle := e.state.lastOnChainCompletedCycle + 1; cycle <= lastCompletedCycle; cycle++ {
-					if err := e.FetchCycleDelegationStates(defaultCtx, cycle, false); err != nil {
+					if err := e.FetchCycleDelegationStates(e.ctx, cycle, nil); err != nil {
 						e.logger.Error("failed to fetch cycle delegation states", "cycle", cycle, "error", err.Error())
 					}
 				}
