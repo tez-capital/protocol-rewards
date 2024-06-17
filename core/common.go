@@ -8,6 +8,7 @@ import (
 var (
 	defaultFetchOptions = FetchOptions{}
 	DebugFetchOptions   = FetchOptions{Force: true, Debug: true}
+	ForceFetchOptions   = FetchOptions{Force: true}
 )
 
 type OgunBalanceUpdate struct {

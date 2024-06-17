@@ -11,7 +11,6 @@ import (
 	"github.com/tez-capital/ogun/api"
 	"github.com/tez-capital/ogun/configuration"
 	"github.com/tez-capital/ogun/core"
-	"github.com/trilitech/tzgo/tezos"
 )
 
 func main() {
@@ -41,10 +40,12 @@ func main() {
 	slog.SetLogLoggerLevel(config.LogLevel)
 
 	if *isTest {
-		engine.FetchDelegateDelegationState(ctx, tezos.MustParseAddress("tz1gXWW1q8NcXtVy2oVVcc2s4XKNzv9CryWd"), 746, &core.DebugFetchOptions)
-		engine.FetchDelegateDelegationState(ctx, tezos.MustParseAddress("tz1bZ8vsMAXmaWEV7FRnyhcuUs2fYMaQ6Hkk"), 746, &core.DebugFetchOptions)
-		engine.FetchDelegateDelegationState(ctx, tezos.MustParseAddress("tz1ZY5ug2KcAiaVfxhDKtKLx8U5zEgsxgdjV"), 745, &core.DebugFetchOptions)
-		// engine.FetchCycleDelegationStates(ctx, int64(745), true)
+		// engine.FetchDelegateDelegationState(ctx, tezos.MustParseAddress("tz1gXWW1q8NcXtVy2oVVcc2s4XKNzv9CryWd"), 746, &core.DebugFetchOptions)
+		// engine.FetchDelegateDelegationState(ctx, tezos.MustParseAddress("tz1bZ8vsMAXmaWEV7FRnyhcuUs2fYMaQ6Hkk"), 746, &core.DebugFetchOptions)
+		// engine.FetchDelegateDelegationState(ctx, tezos.MustParseAddress("tz1ZY5ug2KcAiaVfxhDKtKLx8U5zEgsxgdjV"), 745, &core.DebugFetchOptions)
+		engine.FetchCycleDelegationStates(ctx, int64(744), &core.ForceFetchOptions)
+		engine.FetchCycleDelegationStates(ctx, int64(745), &core.ForceFetchOptions)
+		engine.FetchCycleDelegationStates(ctx, int64(746), &core.ForceFetchOptions)
 		return
 	}
 
