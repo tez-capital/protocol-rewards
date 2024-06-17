@@ -3,22 +3,35 @@ package main
 import (
 	"context"
 	"flag"
+	"fmt"
 	"log/slog"
 	"os"
 	"os/signal"
+	"strconv"
+	"strings"
 	"syscall"
 
 	"github.com/tez-capital/ogun/api"
 	"github.com/tez-capital/ogun/configuration"
 	"github.com/tez-capital/ogun/core"
+	"github.com/trilitech/tzgo/tezos"
 )
 
 func main() {
 	configPath := flag.String("config", "config.hjson", "path to the configuration file")
 	logLevel := flag.String("log", "", "set the desired log level")
-	isTest := flag.Bool("test", false, "run the test")
+	isTest := flag.String("test", "", "run tests")
 
 	ctx, cancel := context.WithCancel(context.Background())
+
+	flag.Usage = func() {
+		fmt.Fprintf(flag.CommandLine.Output(), "Usage of %s:\n", os.Args[0])
+		flag.PrintDefaults()
+		fmt.Println("\nExamples:")
+		fmt.Printf("%s -config <path/to/config.json>\n", os.Args[0])
+		fmt.Printf("%s -log <logLevel> (debug, info, warn, error)\n", os.Args[0])
+		fmt.Printf("%s -test <address>:<cycle> or <cycle>\n", os.Args[0])
+	}
 
 	flag.Parse()
 
@@ -39,13 +52,30 @@ func main() {
 
 	slog.SetLogLoggerLevel(config.LogLevel)
 
-	if *isTest {
-		// engine.FetchDelegateDelegationState(ctx, tezos.MustParseAddress("tz1gXWW1q8NcXtVy2oVVcc2s4XKNzv9CryWd"), 746, &core.DebugFetchOptions)
-		// engine.FetchDelegateDelegationState(ctx, tezos.MustParseAddress("tz1bZ8vsMAXmaWEV7FRnyhcuUs2fYMaQ6Hkk"), 746, &core.DebugFetchOptions)
-		// engine.FetchDelegateDelegationState(ctx, tezos.MustParseAddress("tz1ZY5ug2KcAiaVfxhDKtKLx8U5zEgsxgdjV"), 745, &core.DebugFetchOptions)
-		engine.FetchCycleDelegationStates(ctx, int64(744), &core.ForceFetchOptions)
-		engine.FetchCycleDelegationStates(ctx, int64(745), &core.ForceFetchOptions)
-		engine.FetchCycleDelegationStates(ctx, int64(746), &core.ForceFetchOptions)
+	if *isTest != "" {
+
+		params := strings.Split(*isTest, ":")
+		if len(params) > 1 {
+			address := params[0]
+			cycle, err := strconv.ParseInt(params[1], 10, 64)
+			if err != nil {
+				slog.Error("cycle is not int", "error", err)
+				showTestExample()
+				return
+			}
+
+			engine.FetchDelegateDelegationState(ctx, tezos.MustParseAddress(address), cycle, &core.DebugFetchOptions)
+			return
+		}
+
+		cycle, err := strconv.ParseInt(params[0], 10, 64)
+		if err != nil {
+			slog.Error("cycle is not int", "error", err)
+			showTestExample()
+			return
+		}
+
+		engine.FetchCycleDelegationStates(ctx, cycle, &core.DebugFetchOptions)
 		return
 	}
 
@@ -60,4 +90,11 @@ func main() {
 		privateApiApp.Shutdown()
 	}
 	cancel()
+}
+
+func showTestExample() {
+	slog.Error("check test parameters again")
+	fmt.Println("\nExamples:")
+	fmt.Printf("%s -test <address>:<cycle>\n", os.Args[0])
+	fmt.Printf("%s -test <cycle>\n", os.Args[0])
 }
