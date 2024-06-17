@@ -115,7 +115,6 @@ func (e *Engine) FetchDelegateDelegationState(ctx context.Context, delegateAddre
 }
 
 func (e *Engine) FetchCycleDelegationStates(ctx context.Context, cycle int64, options *FetchOptions) error {
-
 	slog.Info("fetching cycle delegation states", "cycle", cycle, "options", options)
 	lastCompletedCycle, err := e.collector.GetLastCompletedCycle(ctx)
 	if err != nil {

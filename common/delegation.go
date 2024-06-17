@@ -101,11 +101,11 @@ func (d *DelegationState) Delegate(delegator tezos.Address, delegate tezos.Addre
 	}
 
 	switch {
-	case balanceInfo.Baker.Equal(delegate):
+	case balanceInfo.Baker.Equal(delegate): // no change
 		return nil
-	case delegate.Equal(d.Baker):
+	case delegate.Equal(d.Baker): // delegating to the baker
 		d.delegatedBalance += balanceInfo.Balance + balanceInfo.UnfrozenDeposits
-	default:
+	case balanceInfo.Baker.Equal(d.Baker): // undelegating from the baker
 		d.delegatedBalance -= balanceInfo.Balance + balanceInfo.UnfrozenDeposits
 	}
 

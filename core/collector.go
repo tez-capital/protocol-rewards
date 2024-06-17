@@ -269,6 +269,30 @@ func (engine *rpcCollector) getBlockBalanceUpdates(ctx context.Context, state *c
 				})...)
 
 				for internalResultIndex, internalResult := range content.Meta().InternalResults {
+					if internalResult.Kind == tezos.OpTypeDelegation {
+						if !state.HasContractBalanceInfo(internalResult.Source) {
+							// fetch
+							balanceInfo, err := engine.fetchContractInitialBalanceInfo(ctx, internalResult.Source, blockLevelWithMinimumBalance)
+							if err != nil {
+								return nil, err
+							}
+							state.AddBalance(internalResult.Source, *balanceInfo)
+						}
+						delegate := tezos.ZeroAddress
+						if internalResult.Delegate != nil {
+							delegate = *internalResult.Delegate
+						}
+
+						allBalanceUpdates = allBalanceUpdates.Add(OgunBalanceUpdate{
+							Address:   internalResult.Source,
+							Operation: operation.Hash,
+							Index:     transactionIndex,
+							Source:    common.CreatedOnDelegation,
+							Delegate:  delegate,
+						})
+						// no other updates nor internal results for delegation
+						continue
+					}
 					allBalanceUpdates = allBalanceUpdates.Add(lo.Map(internalResult.Result.BalanceUpdates, func(bu rpc.BalanceUpdate, _ int) OgunBalanceUpdate {
 						return OgunBalanceUpdate{
 							Address:       bu.Address(),
@@ -299,15 +323,18 @@ func (engine *rpcCollector) getBlockBalanceUpdates(ctx context.Context, state *c
 
 	// for some reason updates caused by unstake deposits -> deposits are not considered ¯\_(ツ)_/¯
 	preprocessedBlockBalanceUpdates := make([]OgunBalanceUpdate, 0, len(blockBalanceUpdates))
+	cache := make([]OgunBalanceUpdate, 0)
 	skip := false
 	for i, update := range blockBalanceUpdates {
 		if skip {
+			cache = append(cache, update)
 			skip = false
 			continue
 		}
-		if update.Kind == "freezer" && i+1 < len(blockBalanceUpdates) {
+		if i+1 < len(blockBalanceUpdates) {
 			next := blockBalanceUpdates[i+1]
 			if update.Amount < 0 && next.Kind == "freezer" && next.Category == "deposits" {
+				cache = append(cache, update)
 				skip = true
 				continue
 			}
@@ -317,7 +344,7 @@ func (engine *rpcCollector) getBlockBalanceUpdates(ctx context.Context, state *c
 	//  for some reason updates caused by unstake deposits -> deposits are not considered ¯\_(ツ)_/¯
 
 	// block balance updates last
-	allBalanceUpdates = allBalanceUpdates.Add(preprocessedBlockBalanceUpdates...)
+	allBalanceUpdates = allBalanceUpdates.Add(preprocessedBlockBalanceUpdates...).Add(cache...)
 
 	return allBalanceUpdates, nil
 }
@@ -338,7 +365,7 @@ func (engine *rpcCollector) GetDelegationState(ctx context.Context, delegate *rp
 	}
 
 	// we may match at the beginning of the block, we do not have to further process
-	if abs(state.DelegatedBalance()-targetAmount) <= 1 {
+	if abs(state.DelegatedBalance()-targetAmount) <= constants.OGUN_MINIMUM_DIFF_TOLERANCE {
 		state.CreatedAt = common.DelegationStateCreationInfo{
 			Level: blockLevelWithMinimumBalance.Int64(),
 			Kind:  common.CreatedAtBlockBeginning,
@@ -378,9 +405,9 @@ func (engine *rpcCollector) GetDelegationState(ctx context.Context, delegate *rp
 
 		}
 
-		slog.Debug("balance update", "address", balanceUpdate.Address.String(), "delegated_balance", state.DelegatedBalance(), "amount", balanceUpdate.Amount, "target_amount", targetAmount, "diff", state.DelegatedBalance()-targetAmount)
+		slog.Debug("balance update", "delegate", balanceUpdate.Delegate, "address", balanceUpdate.Address.String(), "delegated_balance", state.DelegatedBalance(), "amount", balanceUpdate.Amount, "target_amount", targetAmount, "diff", state.DelegatedBalance()-targetAmount)
 
-		if abs(state.DelegatedBalance()-targetAmount) <= 1 {
+		if abs(state.DelegatedBalance()-targetAmount) <= constants.OGUN_MINIMUM_DIFF_TOLERANCE {
 			found = true
 			state.CreatedAt = common.DelegationStateCreationInfo{
 				Level:         blockLevelWithMinimumBalance.Int64(),
