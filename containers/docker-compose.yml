@@ -28,11 +28,11 @@ services:
     logging:
       driver: json-file
       options:
-        max-size: "200k"  # Maximum file size
-        max-file: "10"    # Maximum number of files
+        max-size: '200k' # Maximum file size
+        max-file: '10' # Maximum number of files
 
   node:
-    image: ghcr.io/alis-is/xtz.node:latest
+    image: ghcr.io/tez-capital/xtz.node:latest
     container_name: node
     volumes:
       - ./node:/ascend/apps/node/data/.tezos-node:rw
@@ -42,8 +42,8 @@ services:
     logging:
       driver: json-file
       options:
-        max-size: "200k"  # Maximum file size
-        max-file: "10"    # Maximum number of files
+        max-size: '200k' # Maximum file size
+        max-file: '10' # Maximum number of files
 
 networks:
   delegation-rewards-network:
