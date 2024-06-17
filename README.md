@@ -3,7 +3,6 @@
 config.hjson
 ```hjson
 {
-    listen: 127.0.0.1:3000
     providers: [
         https://eu.rpc.tez.capital/
         https://rpc.tzkt.io/mainnet/
@@ -21,6 +20,8 @@ config.hjson
 .env
 ```
 LOG_LEVEL=debug
+LISTEN=127.0.0.1:3000
+PRIVATE_LISTEN=127.0.0.1:4000
 
 ```
 

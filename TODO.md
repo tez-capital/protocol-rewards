@@ -8,7 +8,7 @@
 - [ ] polish flags
   - [x] log level
   - [ ] different kind of tests
-- [ ] take listen and listen private from env instead of config
+- [x] take listen and listen private from env instead of config
 
 - [ ] tests (test all this works)
   - [ ] test private server

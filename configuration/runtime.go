@@ -23,8 +23,8 @@ func (dc *DatabaseConfiguration) Unwrap() (host string, port string, user string
 
 type Runtime struct {
 	Database      DatabaseConfiguration `json:"database"`
-	Listen        string                `json:"listen"`
-	PrivateListen string                `json:"private_listen"`
+	Listen        string                `json:"-"`
+	PrivateListen string                `json:"-"`
 	Providers     []string              `json:"providers"`
 	LogLevel      slog.Level            `json:"-"`
 }
@@ -47,6 +47,15 @@ func LoadConfiguration(path string) (*Runtime, error) {
 	}
 
 	runtimeConfig.LogLevel = GetLogLevel(os.Getenv(constants.LOG_LEVEL))
+	runtimeConfig.Listen = os.Getenv(constants.LISTEN)
+	if runtimeConfig.Listen == "" {
+		runtimeConfig.Listen = constants.LISTEN_DEFAULT
+	}
+
+	runtimeConfig.PrivateListen = os.Getenv(constants.PRIVATE_LISTEN)
+	if runtimeConfig.PrivateListen == "" {
+		runtimeConfig.PrivateListen = constants.PRIVATE_LISTEN_DEFAULT
+	}
 
 	return &runtimeConfig, nil
 }
