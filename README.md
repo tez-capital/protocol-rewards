@@ -17,3 +17,11 @@ config.hjson
     }
 }
 ```
+
+.env
+```
+LOG_LEVEL=debug
+
+```
+
+LOG_LEVEL accepted values are debug, info, warn, error. Defaults to info level.
