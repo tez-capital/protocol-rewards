@@ -61,12 +61,15 @@ func (a *Address) Scan(src interface{}) error {
 type TzktDelegator struct {
 	Address          tezos.Address `json:"address"`
 	DelegatedBalance int64         `json:"delegatedBalance"`
+	StakedBalance    int64         `json:"stakedBalance"`
 }
 
 type TzktLikeDelegationState struct {
 	Cycle                    int64           `json:"cycle"`
 	OwnDelegatedBalance      int64           `json:"ownDelegatedBalance"`
+	OwnStakedBalance         int64           `json:"ownStakedBalance"`
 	ExternalDelegatedBalance int64           `json:"externalDelegatedBalance"`
+	ExternalStakedBalance    int64           `json:"externalStakedBalance"`
 	DelegatorsCount          int             `json:"delegatorsCount"`
 	Delegators               []TzktDelegator `json:"delegators"`
 }
@@ -78,15 +81,17 @@ type StoredDelegationState struct {
 	Balances DelegationStateBalances `json:"balances" gorm:"type:jsonb;default:'{}'"`
 }
 
-func (s *StoredDelegationState) OwnDelegatedbalance() int64 {
+func (s *StoredDelegationState) OwnDelegatedbalance() common.DelegatorBalances {
 	return s.Balances[s.Delegate.Address]
 }
 
-func (s *StoredDelegationState) ExternalDelegatedBalance() int64 {
-	var result int64
-	for addr, balance := range s.Balances {
+func (s *StoredDelegationState) ExternalDelegatedBalance() common.DelegatorBalances {
+	result := common.DelegatorBalances{}
+	for addr, balances := range s.Balances {
 		if addr != s.Delegate.Address {
-			result += balance
+			result.DelegatedBalance += balances.DelegatedBalance
+			result.OverstakedBalance += balances.OverstakedBalance
+			result.StakedBalance += balances.StakedBalance
 		}
 	}
 	return result
@@ -94,19 +99,25 @@ func (s *StoredDelegationState) ExternalDelegatedBalance() int64 {
 
 func (s *StoredDelegationState) ToTzktState() *TzktLikeDelegationState {
 	delegators := make([]TzktDelegator, 0, len(s.Balances)-1)
-	for addr, balance := range s.Balances {
+	for addr, balances := range s.Balances {
 		if addr != s.Delegate.Address {
 			delegators = append(delegators, TzktDelegator{
 				Address:          addr,
-				DelegatedBalance: balance,
+				DelegatedBalance: balances.DelegatedBalance,
+				StakedBalance:    balances.StakedBalance - balances.OverstakedBalance,
 			})
 		}
 	}
 
+	ownBalances := s.OwnDelegatedbalance()
+	externalBalances := s.ExternalDelegatedBalance()
+
 	result := &TzktLikeDelegationState{
 		Cycle:                    s.Cycle,
-		OwnDelegatedBalance:      s.OwnDelegatedbalance(),
-		ExternalDelegatedBalance: s.ExternalDelegatedBalance(),
+		OwnDelegatedBalance:      ownBalances.DelegatedBalance,
+		OwnStakedBalance:         ownBalances.StakedBalance,
+		ExternalDelegatedBalance: externalBalances.DelegatedBalance,
+		ExternalStakedBalance:    externalBalances.StakedBalance,
 		DelegatorsCount:          len(delegators),
 		Delegators:               delegators,
 	}
@@ -118,6 +129,6 @@ func CreateStoredDelegationStateFromDelegationState(state *common.DelegationStat
 		Delegate: Address{state.Baker},
 		Cycle:    state.Cycle,
 		Status:   DelegationStateStatusOk,
-		Balances: DelegationStateBalances(state.DelegatorDelegatedBalances()),
+		Balances: DelegationStateBalances(state.DelegatorBalances()),
 	}
 }

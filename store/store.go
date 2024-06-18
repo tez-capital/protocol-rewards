@@ -74,6 +74,7 @@ func (s *Store) PruneDelegationState(cycle int64) error {
 	}
 
 	prunedCycle := cycle - int64(s.config.StoredCycles)
+
 	state := &StoredDelegationState{}
 	slog.Debug("pruning delegation states smaller than", "cycle", prunedCycle)
 	return s.db.Model(&StoredDelegationState{}).Where("cycle < ?", prunedCycle).Delete(state).Error

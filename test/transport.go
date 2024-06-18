@@ -1,35 +1,23 @@
 package test
 
 import (
-	"archive/zip"
 	"bytes"
+	"encoding/json"
 	"io"
+	"io/fs"
 	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
-	"sync"
+
+	"github.com/KarpelesLab/squashfs"
 )
 
 type TestTransport struct {
-	Transport   http.RoundTripper
-	CacheDir    string
-	zipCacheMap map[string]*zip.File
-	zipCacheMtx sync.Mutex
-}
-
-func removeFirstPart(path, target string) string {
-	// Split the path into segments based on "/".
-	segments := strings.Split(path, "/")
-
-	// Check if the first segment matches the target string.
-	if len(segments) > 0 && segments[0] == target {
-		// Remove the first segment.
-		segments = segments[1:]
-	}
-
-	// Join the segments back into a path.
-	return strings.Join(segments, "/")
+	Transport  http.RoundTripper
+	CacheDir   string
+	sqfs       *squashfs.Superblock
+	pathPrefix string
 }
 
 func getFilenameWithoutExt(path string) string {
@@ -47,26 +35,19 @@ func getFilenameWithoutExt(path string) string {
 	return filename
 }
 
-func NewTestTransport(transport http.RoundTripper, cacheDir, zipPath string) (*TestTransport, error) {
-	var err error
-	zipReader, err := zip.OpenReader(zipPath)
-	if err != nil {
-		return nil, err
-	}
+func NewTestTransport(transport http.RoundTripper, cacheDir, squashfsPath string) (*TestTransport, error) {
 
 	result := &TestTransport{
-		Transport:   transport,
-		CacheDir:    cacheDir,
-		zipCacheMap: make(map[string]*zip.File),
-		zipCacheMtx: sync.Mutex{},
+		Transport:  transport,
+		CacheDir:   cacheDir,
+		pathPrefix: getFilenameWithoutExt(squashfsPath),
 	}
-
-	for _, f := range zipReader.File {
-		if f.FileInfo().IsDir() {
-			continue
+	if squashfsPath != "" {
+		sqfs, err := squashfs.Open(squashfsPath)
+		if err != nil {
+			return nil, err
 		}
-
-		result.zipCacheMap[removeFirstPart(f.Name, getFilenameWithoutExt(zipPath))] = f
+		result.sqfs = sqfs
 	}
 
 	return result, nil
@@ -77,29 +58,25 @@ func (t *TestTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 		return t.Transport.RoundTrip(req) // Only cache GET requests
 	}
 
-	filename := t.cacheFilename(req.URL.Path)
+	path := req.URL.Path
 
-	// t.zipCacheMtx.Lock()
-	// defer t.zipCacheMtx.Unlock()
-	if f, ok := t.zipCacheMap[filename]; ok {
-		rc, err := f.Open()
-		if err != nil {
-			return nil, err
-		}
-		defer rc.Close()
+	path = strings.TrimPrefix(path, "/mainnet")
+	filename := t.cacheFilename(path)
+	filename = strings.TrimPrefix(filename, t.pathPrefix)
 
-		data, err := io.ReadAll(rc)
-		if err != nil {
-			return nil, err
+	if data, err := fs.ReadFile(t.sqfs, filename); err == nil {
+		var tmp json.RawMessage
+		if err := json.Unmarshal(data, &tmp); err == nil {
+			return &http.Response{
+				StatusCode: 200,
+				Body:       io.NopCloser(bytes.NewReader(data)),
+				Header:     make(http.Header),
+			}, nil
 		}
-		return &http.Response{
-			StatusCode: 200,
-			Body:       io.NopCloser(bytes.NewReader(data)),
-			Header:     make(http.Header),
-		}, nil
 	}
+	cachedFileName := t.CacheDir + "/" + filename
 
-	if data, err := os.ReadFile(t.CacheDir + "/" + filename); err == nil {
+	if data, err := os.ReadFile(cachedFileName); err == nil {
 		// Cache hit, return the response from the cache
 		return &http.Response{
 			StatusCode: 200,
@@ -121,9 +98,12 @@ func (t *TestTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 	}
 	resp.Body.Close() // close the original body
 
-	// Save the response body to the cache
-	os.MkdirAll(t.CacheDir, 0755)
-	os.WriteFile(filename, body, 0644)
+	var tmp json.RawMessage
+	if err := json.Unmarshal(body, &tmp); err == nil {
+		// Save the response body to the cache
+		os.MkdirAll(t.CacheDir, 0755)
+		os.WriteFile(cachedFileName, body, 0644)
+	}
 
 	// Reconstruct the response body before returning
 	resp.Body = io.NopCloser(bytes.NewBuffer(body))

@@ -7,41 +7,46 @@ import (
 	"github.com/samber/lo"
 )
 
-func runInBatches[T any](ctx context.Context, collection []T, bufferSize int, f func(ctx context.Context, item T, mtx *sync.RWMutex) (cancel bool)) error {
-	ch := lo.SliceToChannel(bufferSize, collection)
+type Job[T any] func(ctx context.Context, item T, mtx *sync.RWMutex) (cancel bool)
+
+func taskRunner[T any](ctx context.Context, taskSource <-chan T, job Job[T], mtx *sync.RWMutex, cancelFn func()) {
+	var task T
+	var ok bool
+
+	for {
+		select { // check if context is done
+		case <-ctx.Done():
+			return
+		case task, ok = <-taskSource:
+			if !ok {
+				return
+			}
+		}
+
+		if shouldCancel := job(ctx, task, mtx); shouldCancel {
+			cancelFn()
+			return
+		}
+	}
+}
+
+func runInParallel[T any](ctx context.Context, collection []T, parallelInstances int, f Job[T]) error {
+	taskQueue := lo.SliceToChannel(parallelInstances, collection)
 	mtx := sync.RWMutex{}
 
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
-	for {
-		items, _, _, ok := lo.Buffer(ch, bufferSize)
-		var wg sync.WaitGroup
-		wg.Add(len(items))
-		for _, item := range items {
-			go func(item T) {
-				defer wg.Done()
-
-				if shouldCancel := f(ctx, item, &mtx); shouldCancel {
-					cancel()
-				}
-			}(item)
-		}
-		done := make(chan struct{})
+	wg := sync.WaitGroup{}
+	wg.Add(parallelInstances)
+	for i := 0; i < parallelInstances; i++ {
 		go func() {
-			wg.Wait()
-			close(done)
+			defer wg.Done()
+			taskRunner(ctx, taskQueue, f, &mtx, cancel)
 		}()
-
-		select {
-		case <-done:
-		case <-ctx.Done():
-			return ctx.Err()
-		}
-		if !ok {
-			break
-		}
 	}
+	wg.Wait()
+
 	return nil
 }
 

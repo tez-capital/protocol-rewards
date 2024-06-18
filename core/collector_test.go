@@ -2,7 +2,9 @@ package core
 
 import (
 	"context"
+	"fmt"
 	"net/http"
+	"runtime/debug"
 	"sync"
 	"testing"
 
@@ -27,7 +29,7 @@ func getTransport() *test.TestTransport {
 func TestGetActiveDelegates(t *testing.T) {
 	assert := assert.New(t)
 
-	collector, err := newRpcCollector(defaultCtx, []string{"https://eu.rpc.tez.capital/"}, getTransport())
+	collector, err := newRpcCollector(defaultCtx, []string{"https://eu.rpc.tez.capital/", "https://rpc.tzkt.io/mainnet/"}, getTransport())
 	assert.Nil(err)
 
 	delegates, err := collector.GetActiveDelegatesFromCycle(defaultCtx, 745)
@@ -40,7 +42,9 @@ func TestGetDelegationStateNoStaking(t *testing.T) {
 
 	cycle := int64(745)
 
-	collector, err := newRpcCollector(defaultCtx, []string{"https://eu.rpc.tez.capital/"}, getTransport())
+	debug.SetMaxThreads(1000000)
+
+	collector, err := newRpcCollector(defaultCtx, []string{"https://eu.rpc.tez.capital/", "https://rpc.tzkt.io/mainnet/"}, getTransport())
 	assert.Nil(err)
 
 	delegates, err := collector.GetActiveDelegatesFromCycle(defaultCtx, cycle)
@@ -58,7 +62,7 @@ func TestGetDelegationStateNoStaking(t *testing.T) {
 				return
 			}
 
-			_, err = collector.GetDelegationState(defaultCtx, delegate)
+			_, err = collector.GetDelegationState(defaultCtx, delegate, 745)
 			if err != nil && err != constants.ErrDelegateHasNoMinimumDelegatedBalance {
 				channels <- err
 				return
@@ -68,6 +72,9 @@ func TestGetDelegationStateNoStaking(t *testing.T) {
 	}
 	wg.Wait()
 	for i := 0; i < len(delegates); i++ {
+		if err := <-channels; err != nil {
+			fmt.Println(delegates[i].String())
+		}
 		assert.Nil(<-channels)
 	}
 }

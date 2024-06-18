@@ -4,13 +4,14 @@ import (
 	"context"
 	"errors"
 	"log/slog"
+	"net/http"
 	"sync"
 	"time"
 
-	"github.com/tez-capital/ogun/common"
 	"github.com/tez-capital/ogun/configuration"
 	"github.com/tez-capital/ogun/constants"
 	"github.com/tez-capital/ogun/store"
+	"github.com/tez-capital/ogun/test"
 	"github.com/trilitech/tzgo/tezos"
 )
 
@@ -22,8 +23,22 @@ type Engine struct {
 	logger    *slog.Logger
 }
 
-func NewEngine(ctx context.Context, config *configuration.Runtime) (*Engine, error) {
-	collector, err := newRpcCollector(ctx, config.Providers, nil)
+type EngineOptions struct {
+	FetchAutomatically bool
+}
+
+var (
+	DefaultEngineOptions = &EngineOptions{FetchAutomatically: true}
+	TestEngineOptions    = &EngineOptions{FetchAutomatically: false}
+)
+
+func NewEngine(ctx context.Context, config *configuration.Runtime, options *EngineOptions) (*Engine, error) {
+	if options == nil {
+		options = DefaultEngineOptions
+	}
+
+	transport, _ := test.NewTestTransport(http.DefaultTransport, "test/data/745", "test/data/745.squashfs")
+	collector, err := newRpcCollector(ctx, config.Providers, transport)
 	if err != nil {
 		slog.Error("failed to create new RPC Collector", "error", err)
 		return nil, err
@@ -43,7 +58,9 @@ func NewEngine(ctx context.Context, config *configuration.Runtime) (*Engine, err
 		logger:    slog.Default(), // TODO: replace with custom logger
 	}
 
-	go result.fetchAutomatically()
+	if options.FetchAutomatically {
+		go result.fetchAutomatically()
+	}
 
 	return result, nil
 }
@@ -76,7 +93,7 @@ func (e *Engine) fetchDelegateDelegationStateInternal(ctx context.Context, deleg
 		return err
 	}
 
-	state, err := e.collector.GetDelegationState(ctx, delegate)
+	state, err := e.collector.GetDelegationState(ctx, delegate, cycle)
 	var storableState *store.StoredDelegationState
 	switch {
 	case err != nil && err != constants.ErrDelegateHasNoMinimumDelegatedBalance:
@@ -85,8 +102,7 @@ func (e *Engine) fetchDelegateDelegationStateInternal(ctx context.Context, deleg
 		}
 		return err
 	case err == constants.ErrDelegateHasNoMinimumDelegatedBalance:
-		storableState = store.CreateStoredDelegationStateFromDelegationState(common.NewDelegationState(delegate))
-		storableState.Cycle = cycle // because it is not available in the delegate
+		storableState = store.CreateStoredDelegationStateFromDelegationState(state)
 		storableState.Status = store.DelegationStateStatusMinimumNotAvailable
 	default:
 		storableState = store.CreateStoredDelegationStateFromDelegationState(state)
@@ -132,16 +148,22 @@ func (e *Engine) FetchCycleDelegationStates(ctx context.Context, cycle int64, op
 		return err
 	}
 
-	err = runInBatches(ctx, delegates, constants.OGUN_DELEGATE_FETCH_BATCH_SIZE, func(ctx context.Context, item tezos.Address, mtx *sync.RWMutex) bool {
+	err = runInParallel(ctx, delegates, constants.OGUN_DELEGATE_FETCH_BATCH_SIZE, func(ctx context.Context, item tezos.Address, mtx *sync.RWMutex) bool {
 		err := e.fetchDelegateDelegationStateInternal(ctx, item, cycle, options)
 		if err != nil {
-			// warn or error??
-			e.logger.Warn("failed to fetch delegate delegation state", "cycle", cycle, "delegate", item.String(), "error", err.Error())
+			e.logger.Error("failed to fetch delegate delegation state", "cycle", cycle, "delegate", item.String(), "error", err.Error())
+			return false
 		}
+		slog.Info("finished fetching delegate delegation state", "cycle", cycle, "delegate", item.String())
 		return false
 	})
+
+	if err != nil {
+		slog.Error("failed to fetch cycle", "cycle", cycle, "error", err.Error())
+		return err
+	}
 	slog.Info("finished fetching cycle delegation states", "cycle", cycle)
-	return err
+	return nil
 }
 
 func (e *Engine) IsDelegateBeingFetched(cycle int64, delegate tezos.Address) bool {
