@@ -16,7 +16,12 @@ const (
 	PRIVATE_LISTEN         = "PRIVATE_LISTEN"
 	PRIVATE_LISTEN_DEFAULT = ""
 
-	STORAGE_ROLLING = "rolling"
-	STORAGE_ARCHIVE = "archive"
-	STORED_CYCLES   = 20
+	STORED_CYCLES = 20
+)
+
+type StorageKind string
+
+const (
+	Archive StorageKind = "archive"
+	Rolling StorageKind = "rolling"
 )

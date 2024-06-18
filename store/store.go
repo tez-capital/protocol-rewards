@@ -67,7 +67,7 @@ func (s *Store) StoreDelegationState(state *StoredDelegationState) error {
 }
 
 func (s *Store) PruneDelegationState(cycle int64, config *configuration.Runtime) error {
-	if config.Storage.Mode != constants.STORAGE_ROLLING {
+	if config.Storage.Mode != constants.Rolling {
 		return nil
 	}
 

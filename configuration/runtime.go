@@ -23,8 +23,8 @@ func (dc *DatabaseConfiguration) Unwrap() (host string, port string, user string
 
 type StorageConfiguration struct {
 	// current supported modes are [rolling] and [archive]
-	Mode         string `json:"mode"`
-	StoredCycles int    `json:"stored_cycles"`
+	Mode         constants.StorageKind `json:"mode"`
+	StoredCycles int                   `json:"stored_cycles"`
 }
 
 type Runtime struct {
@@ -51,7 +51,7 @@ func LoadConfiguration(path string) (*Runtime, error) {
 
 	// if config has [rolling] storage mode but no stored_cycles (user forgot)
 	// default to 20 stored_cycles
-	if runtimeConfig.Storage.Mode == constants.STORAGE_ROLLING && runtimeConfig.Storage.StoredCycles == 0 {
+	if runtimeConfig.Storage.Mode == constants.Rolling && runtimeConfig.Storage.StoredCycles == 0 {
 		runtimeConfig.Storage.StoredCycles = constants.STORED_CYCLES
 	}
 
