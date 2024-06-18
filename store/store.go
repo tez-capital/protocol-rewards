@@ -55,8 +55,8 @@ func (s *Store) GetDelegationState(delegate tezos.Address, cycle int64) (*Stored
 
 func (s *Store) StoreDelegationState(state *StoredDelegationState) error {
 	// update if exists
-	if err := s.db.Where("delegate = ? AND cycle = ?", state.Delegate, state.Cycle).First(&StoredDelegationState{}).Error; err == nil {
-		return s.db.Model(&StoredDelegationState{}).Where("delegate = ? AND cycle = ?", state.Delegate, state.Cycle).Updates(state).Error
+	if result := s.db.Model(&StoredDelegationState{}).Where("delegate = ? AND cycle = ?", state.Delegate, state.Cycle).Updates(state); result.RowsAffected > 0 && result.Error == nil {
+		return nil
 	}
 
 	slog.Debug("storing delegation state", "delegate", state.Delegate.String(), "cycle", state.Cycle)
@@ -64,6 +64,18 @@ func (s *Store) StoreDelegationState(state *StoredDelegationState) error {
 		return err
 	}
 	return nil
+}
+
+func (s *Store) PruneDelegationState(cycle int64, config *configuration.Runtime) error {
+	if config.Storage.Mode != constants.STORAGE_ROLLING {
+		return nil
+	}
+
+	prunedCycle := cycle - int64(config.Storage.StoredCycles)
+	state := &StoredDelegationState{Cycle: prunedCycle}
+	slog.Debug("pruning delegation states smaller than", "cycle", prunedCycle)
+	return s.db.Model(&StoredDelegationState{}).Where("cycle < ?", prunedCycle).Delete(state).Error
+
 }
 
 func (s *Store) GetLastFetchedCycle() (int64, error) {

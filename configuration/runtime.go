@@ -21,12 +21,19 @@ func (dc *DatabaseConfiguration) Unwrap() (host string, port string, user string
 	return dc.Host, dc.Port, dc.User, dc.Password, dc.Database
 }
 
+type StorageConfiguration struct {
+	// current supported modes are [rolling] and [archive]
+	Mode         string `json:"mode"`
+	StoredCycles int    `json:"stored_cycles"`
+}
+
 type Runtime struct {
+	Providers     []string              `json:"providers"`
 	Database      DatabaseConfiguration `json:"database"`
+	Storage       StorageConfiguration  `json:"storage"`
+	LogLevel      slog.Level            `json:"-"`
 	Listen        string                `json:"-"`
 	PrivateListen string                `json:"-"`
-	Providers     []string              `json:"providers"`
-	LogLevel      slog.Level            `json:"-"`
 }
 
 func LoadConfiguration(path string) (*Runtime, error) {
@@ -40,6 +47,12 @@ func LoadConfiguration(path string) (*Runtime, error) {
 	err = hjson.Unmarshal(configBytes, &runtimeConfig)
 	if err != nil {
 		return nil, err
+	}
+
+	// if config has [rolling] storage mode but no stored_cycles (user forgot)
+	// default to 20 stored_cycles
+	if runtimeConfig.Storage.Mode == constants.STORAGE_ROLLING && runtimeConfig.Storage.StoredCycles == 0 {
+		runtimeConfig.Storage.StoredCycles = constants.STORED_CYCLES
 	}
 
 	if err = godotenv.Load(); err != nil {

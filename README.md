@@ -3,17 +3,21 @@
 config.hjson
 ```hjson
 {
-    providers: [
-        https://eu.rpc.tez.capital/
-        https://rpc.tzkt.io/mainnet/
-    ]
-    database: {
-        host: 127.0.0.1
-        port: 5432
-        user: ogun
-        password: ogun
-        database: ogun
-    }
+   providers: [
+      https://eu.rpc.tez.capital/
+      https://rpc.tzkt.io/mainnet/
+   ]
+   database: {
+      host: 127.0.0.1
+      port: 5432
+      user: ogun
+      password: ogun
+      database: ogun
+   }
+   storage: {
+      mode: rolling
+      stored_cycles: 20
+   }
 }
 ```
 

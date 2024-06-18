@@ -43,7 +43,7 @@ func NewEngine(ctx context.Context, config *configuration.Runtime) (*Engine, err
 		logger:    slog.Default(), // TODO: replace with custom logger
 	}
 
-	go result.fetchAutomatically()
+	go result.fetchAutomatically(config)
 
 	return result, nil
 }
@@ -156,7 +156,7 @@ func (e *Engine) GetLastFetchedCycle() (int64, error) {
 	return e.store.GetLastFetchedCycle()
 }
 
-func (e *Engine) fetchAutomatically() {
+func (e *Engine) fetchAutomatically(config *configuration.Runtime) {
 	go func() {
 		for {
 			select {
@@ -194,6 +194,7 @@ func (e *Engine) fetchAutomatically() {
 					if err := e.FetchCycleDelegationStates(e.ctx, cycle, nil); err != nil {
 						e.logger.Error("failed to fetch cycle delegation states", "cycle", cycle, "error", err.Error())
 					}
+					e.store.PruneDelegationState(cycle, config)
 				}
 
 				e.state.SetLastOnChainCompletedCycle(lastCompletedCycle)

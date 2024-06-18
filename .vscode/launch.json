@@ -10,7 +10,12 @@
       "request": "launch",
       "mode": "auto",
       "program": "main.go",
-      "args": ["--test"]
+      "args": [
+        "-log",
+        "debug",
+        "-test",
+        "tz1gXWW1q8NcXtVy2oVVcc2s4XKNzv9CryWd:745"
+      ]
     },
     {
       "name": "Launch main",
