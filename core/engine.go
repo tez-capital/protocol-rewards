@@ -191,10 +191,12 @@ func (e *Engine) fetchAutomatically(config *configuration.Runtime) {
 				}
 
 				for cycle := e.state.lastOnChainCompletedCycle + 1; cycle <= lastCompletedCycle; cycle++ {
-					if err := e.FetchCycleDelegationStates(e.ctx, cycle, nil); err != nil {
+					if err = e.FetchCycleDelegationStates(e.ctx, cycle, nil); err != nil {
 						e.logger.Error("failed to fetch cycle delegation states", "cycle", cycle, "error", err.Error())
 					}
-					e.store.PruneDelegationState(cycle, config)
+					if err = e.store.PruneDelegationState(cycle, config); err != nil {
+						e.logger.Error("failed to prune cycles out", "error", err.Error())
+					}
 				}
 
 				e.state.SetLastOnChainCompletedCycle(lastCompletedCycle)
