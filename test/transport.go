@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"io"
 	"io/fs"
+	"log/slog"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -36,7 +37,6 @@ func getFilenameWithoutExt(path string) string {
 }
 
 func NewTestTransport(transport http.RoundTripper, cacheDir, squashfsPath string) (*TestTransport, error) {
-
 	result := &TestTransport{
 		Transport:  transport,
 		CacheDir:   cacheDir,
@@ -44,10 +44,12 @@ func NewTestTransport(transport http.RoundTripper, cacheDir, squashfsPath string
 	}
 	if squashfsPath != "" {
 		sqfs, err := squashfs.Open(squashfsPath)
-		if err != nil {
-			return nil, err
+		switch {
+		case err != nil:
+			slog.Warn("failed to open squashfs", "error", err.Error())
+		default:
+			result.sqfs = sqfs
 		}
-		result.sqfs = sqfs
 	}
 
 	return result, nil

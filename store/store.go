@@ -81,10 +81,16 @@ func (s *Store) PruneDelegationState(cycle int64) error {
 
 }
 
-func (s *Store) GetOffsetFetchedCycle(offset int) (int64, error) {
+func (s *Store) IsDelegationStateAvailable(delegate tezos.Address, cycle int64) (bool, error) {
+	var count int64
+	s.db.Model(&StoredDelegationState{}).Where("delegate = ? AND cycle = ?", delegate, cycle).Count(&count)
+	return count > 0, nil
+}
+
+func (s *Store) GetLastFetchedCycle() (int64, error) {
 	var cycle int64
 
-	if err := s.db.Select("cycle").Order("cycle desc").Offset(offset).First(&cycle).Error; err != nil {
+	if err := s.db.Select("cycle").Order("cycle desc").First(&cycle).Error; err != nil {
 		if err == gorm.ErrRecordNotFound {
 			return 0, nil
 		}

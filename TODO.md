@@ -1,5 +1,6 @@
-- [ ] Core features
-  - [ ] over staking (waiting for NL engineers)
+- [x] Core features
+  - [x] over staking
+    - [ ] validate
 
 - [ ] tests (test all this works)
   - [ ] test private server
@@ -8,7 +9,9 @@
   - [ ] docker compose and containers
 
 - [ ] test suite
-  - [ ] add test more precise test for engine based on test data from test/data/745.zip
+  - [ ] add test more precise test for engine based on test data from test/data/745.squashfs
+    - [ ] this means add more squashfs samples as new cycles are produced
+  - [x] store test data in squashfs
   
 - [ ] deploy
   - [ ] prepare nginx config (I'll do this)
@@ -27,5 +30,5 @@
   - [x] we should fetch it from network parameters when starting because it can be different on testnets
   
 - [ ] configurable subset of delegates to track instead of all so people can run their mirrors with reduced overhead
-
-- [ ] store test data in squashfs ( I'll do this)
+- [ ] webhook notifications for discord - notifies about errors fetching delegates
+  - NOTE: FetchCycleDelegationStates - after `e.logger.Error("failed to fetch delegate delegation state", "cycle", cycle, "delegate", item.String(), "error", err.Error())`

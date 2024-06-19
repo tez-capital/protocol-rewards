@@ -11,7 +11,6 @@ import (
 	"github.com/tez-capital/ogun/configuration"
 	"github.com/tez-capital/ogun/constants"
 	"github.com/tez-capital/ogun/store"
-	"github.com/tez-capital/ogun/test"
 	"github.com/trilitech/tzgo/tezos"
 )
 
@@ -25,11 +24,17 @@ type Engine struct {
 
 type EngineOptions struct {
 	FetchAutomatically bool
+	Transport          http.RoundTripper
 }
 
 var (
-	DefaultEngineOptions = &EngineOptions{FetchAutomatically: true}
-	TestEngineOptions    = &EngineOptions{FetchAutomatically: false}
+	DefaultEngineOptions = &EngineOptions{
+		FetchAutomatically: true,
+		Transport:          nil,
+	}
+	TestEngineOptions = &EngineOptions{
+		FetchAutomatically: false,
+	}
 )
 
 func NewEngine(ctx context.Context, config *configuration.Runtime, options *EngineOptions) (*Engine, error) {
@@ -37,8 +42,7 @@ func NewEngine(ctx context.Context, config *configuration.Runtime, options *Engi
 		options = DefaultEngineOptions
 	}
 
-	transport, _ := test.NewTestTransport(http.DefaultTransport, "test/data/745", "test/data/745.squashfs")
-	collector, err := newRpcCollector(ctx, config.Providers, transport)
+	collector, err := newRpcCollector(ctx, config.Providers, options.Transport)
 	if err != nil {
 		slog.Error("failed to create new RPC Collector", "error", err)
 		return nil, err
@@ -171,13 +175,13 @@ func (e *Engine) IsDelegateBeingFetched(cycle int64, delegate tezos.Address) boo
 }
 
 func (e *Engine) GetDelegationState(ctx context.Context, delegate tezos.Address, cycle int64) (*store.StoredDelegationState, error) {
-	rd := e.collector.GetConsensusRightsDelay(ctx)
-	return e.store.GetDelegationState(delegate, cycle-rd)
+	cycle = e.collector.GetCycleBakingPowerOrigin(ctx, cycle)
+	return e.store.GetDelegationState(delegate, cycle)
 }
 
-func (e *Engine) GetLastConsensusRightsCycle(ctx context.Context) (int64, error) {
-	rd := e.collector.GetConsensusRightsDelay(ctx)
-	return e.store.GetOffsetFetchedCycle(int(rd))
+func (e *Engine) IsDelegationStateAvailable(ctx context.Context, delegate tezos.Address, cycle int64) (bool, error) {
+	cycle = e.collector.GetCycleBakingPowerOrigin(ctx, cycle)
+	return e.store.IsDelegationStateAvailable(delegate, cycle)
 }
 
 func (e *Engine) fetchAutomatically() {
@@ -201,7 +205,7 @@ func (e *Engine) fetchAutomatically() {
 				}
 
 				if e.state.lastOnChainCompletedCycle == 0 {
-					cycle, _ := e.store.GetOffsetFetchedCycle(0)
+					cycle, _ := e.store.GetLastFetchedCycle()
 					switch cycle {
 					case 0:
 						e.state.SetLastOnChainCompletedCycle(lastCompletedCycle - 1)

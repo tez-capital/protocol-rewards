@@ -45,18 +45,30 @@ func registerGetDelegationState(app *fiber.App, engine *core.Engine) {
 	})
 }
 
-func registerGetLastConsensusRightsCycle(app *fiber.App, engine *core.Engine) {
-	app.Get("/last-consensus-rights-cycle", func(c *fiber.Ctx) error {
-		cycle, err := engine.GetLastConsensusRightsCycle(c.Context())
+func registerIsDelegationStateAvailable(app *fiber.App, engine *core.Engine) {
+	app.Get("/delegate/:cycle/:address/available", func(c *fiber.Ctx) error {
+		cycle, err := strconv.ParseInt(c.Params("cycle"), 10, 64)
+		if err != nil {
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+				"error": err.Error(),
+			})
+		}
+
+		address, err := tezos.ParseAddress(c.Params("address"))
+		if err != nil {
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+				"error": err.Error(),
+			})
+		}
+
+		available, err := engine.IsDelegationStateAvailable(c.Context(), address, cycle)
 		if err != nil {
 			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
 				"error": err.Error(),
 			})
 		}
 
-		return c.JSON(fiber.Map{
-			"cycle": cycle,
-		})
+		return c.JSON(available)
 	})
 }
 
@@ -102,7 +114,7 @@ func registerRewardsSplitMirror(app *fiber.App, engine *core.Engine) {
 func CreatePublicApi(config *configuration.Runtime, engine *core.Engine) *fiber.App {
 	app := fiber.New()
 	registerGetDelegationState(app, engine)
-	registerGetLastConsensusRightsCycle(app, engine)
+	registerIsDelegationStateAvailable(app, engine)
 	registerRewardsSplitMirror(app, engine)
 
 	go func() {

@@ -5,6 +5,7 @@ import (
 	"flag"
 	"fmt"
 	"log/slog"
+	"net/http"
 	"os"
 	"os/signal"
 	"strconv"
@@ -14,10 +15,22 @@ import (
 	"github.com/tez-capital/ogun/api"
 	"github.com/tez-capital/ogun/configuration"
 	"github.com/tez-capital/ogun/core"
+	"github.com/tez-capital/ogun/test"
 	"github.com/trilitech/tzgo/tezos"
 )
 
-func run_test(ctx context.Context, testFlag string, config *configuration.Runtime) {
+func run_test(ctx context.Context, testFlag string, config *configuration.Runtime, cacheId *string) {
+	options := core.TestEngineOptions
+	if cacheId != nil {
+		var err error
+		options.Transport, err = test.NewTestTransport(http.DefaultTransport, *cacheId, *cacheId+".squashfs")
+		if err != nil {
+			slog.Error("failed to create caching transport", "error", err)
+			return
+		}
+		slog.Info("using caching transport", "cacheId", *cacheId)
+	}
+
 	engine, err := core.NewEngine(ctx, config, core.TestEngineOptions)
 	if err != nil {
 		slog.Error("failed to create engine", "error", err.Error())
@@ -46,13 +59,13 @@ func run_test(ctx context.Context, testFlag string, config *configuration.Runtim
 	}
 
 	engine.FetchCycleDelegationStates(ctx, cycle, &core.ForceFetchOptions)
-	return
 }
 
 func main() {
 	configPath := flag.String("config", "config.hjson", "path to the configuration file")
 	logLevel := flag.String("log", "", "set the desired log level")
 	isTest := flag.String("test", "", "run tests")
+	cacheId := flag.String("cache", "", "cache id")
 
 	ctx, cancel := context.WithCancel(context.Background())
 
@@ -63,6 +76,7 @@ func main() {
 		fmt.Printf("%s -config <path/to/config.json>\n", os.Args[0])
 		fmt.Printf("%s -log <logLevel> (debug, info, warn, error)\n", os.Args[0])
 		fmt.Printf("%s -test <address>:<cycle> or <cycle>\n", os.Args[0])
+		fmt.Printf("%s -cache test/data/745 (only in combination with -test)\n", os.Args[0])
 	}
 
 	flag.Parse()
@@ -80,7 +94,7 @@ func main() {
 
 	switch {
 	case *isTest != "":
-		run_test(ctx, *isTest, config)
+		run_test(ctx, *isTest, config, cacheId)
 		return
 	}
 

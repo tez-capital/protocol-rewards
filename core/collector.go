@@ -158,14 +158,14 @@ func (engine *rpcCollector) GetLastCompletedCycle(ctx context.Context) (int64, e
 	return cycle - 1, err
 }
 
-func (engine *rpcCollector) GetConsensusRightsDelay(ctx context.Context) int64 {
-	delay, _ := attemptWithClients(engine.rpcs, func(client *rpc.Client) (int64, error) {
+func (engine *rpcCollector) GetCycleBakingPowerOrigin(ctx context.Context, cycle int64) (originCycle int64) {
+	consensusDelay, _ := attemptWithClients(engine.rpcs, func(client *rpc.Client) (int64, error) {
 		return client.Params.ConsensusRightsDelay, nil
 	})
 
 	// yeah that is a bit counter-intuitive, but at the end of cycle c
 	// we compute rights for c+1+consensus_rights_delay
-	return delay + 1
+	return cycle - 1 - consensusDelay
 }
 
 func (engine *rpcCollector) determineLastBlockOfCycle(cycle int64) rpc.BlockID {
