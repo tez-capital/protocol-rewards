@@ -14,7 +14,8 @@ import (
 )
 
 type Store struct {
-	db *gorm.DB
+	db     *gorm.DB
+	config configuration.StorageConfiguration
 }
 
 func NewStore(config *configuration.Runtime) (*Store, error) {
@@ -38,7 +39,8 @@ func NewStore(config *configuration.Runtime) (*Store, error) {
 	}
 	db.AutoMigrate(&StoredDelegationState{})
 	return &Store{
-		db: db,
+		db:     db,
+		config: config.Storage,
 	}, nil
 }
 
@@ -66,12 +68,12 @@ func (s *Store) StoreDelegationState(state *StoredDelegationState) error {
 	return nil
 }
 
-func (s *Store) PruneDelegationState(cycle int64, config *configuration.Runtime) error {
-	if config.Storage.Mode != constants.Rolling {
+func (s *Store) PruneDelegationState(cycle int64) error {
+	if s.config.Mode != constants.Rolling {
 		return nil
 	}
 
-	prunedCycle := cycle - int64(config.Storage.StoredCycles)
+	prunedCycle := cycle - int64(s.config.StoredCycles)
 	state := &StoredDelegationState{}
 	slog.Debug("pruning delegation states smaller than", "cycle", prunedCycle)
 	return s.db.Model(&StoredDelegationState{}).Where("cycle < ?", prunedCycle).Delete(state).Error
