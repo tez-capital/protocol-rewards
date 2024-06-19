@@ -19,7 +19,7 @@ var (
 )
 
 func getTransport() *test.TestTransport {
-	transport, err := test.NewTestTransport(http.DefaultTransport, "../test/data/745", "../test/data/745.zip")
+	transport, err := test.NewTestTransport(http.DefaultTransport, "../test/data/745", "../test/data/745.squashfs")
 	if err != nil {
 		panic(err)
 	}
