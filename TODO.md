@@ -23,8 +23,8 @@
   - [x] implement rolling mode - remove cycles older than L - 20 where L is the last completed cycle (default)
   - [x] implement archive mode - keep all cycles in the database
 
-- [ ] add consensus round delay - e.g. if 2 api returns for cycle 747 results of cycle 745 
-  - [ ] we should fetch it from network parameters when starting because it can be different on testnets
+- [x] add consensus round delay - e.g. if 2 api returns for cycle 747 results of cycle 745 
+  - [x] we should fetch it from network parameters when starting because it can be different on testnets
   
 - [ ] configurable subset of delegates to track instead of all so people can run their mirrors with reduced overhead
 

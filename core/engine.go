@@ -148,12 +148,14 @@ func (e *Engine) IsDelegateBeingFetched(cycle int64, delegate tezos.Address) boo
 	return e.state.IsDelegateBeingFetched(cycle, delegate)
 }
 
-func (e *Engine) GetDelegationState(delegate tezos.Address, cycle int64) (*store.StoredDelegationState, error) {
-	return e.store.GetDelegationState(delegate, cycle)
+func (e *Engine) GetDelegationState(ctx context.Context, delegate tezos.Address, cycle int64) (*store.StoredDelegationState, error) {
+	rd := e.collector.GetConsensusRightsDelay(ctx)
+	return e.store.GetDelegationState(delegate, cycle-rd)
 }
 
-func (e *Engine) GetLastFetchedCycle() (int64, error) {
-	return e.store.GetLastFetchedCycle()
+func (e *Engine) GetLastConsensusRightsCycle(ctx context.Context) (int64, error) {
+	rd := e.collector.GetConsensusRightsDelay(ctx)
+	return e.store.GetOffsetFetchedCycle(int(rd))
 }
 
 func (e *Engine) fetchAutomatically() {
@@ -177,7 +179,7 @@ func (e *Engine) fetchAutomatically() {
 				}
 
 				if e.state.lastOnChainCompletedCycle == 0 {
-					cycle, _ := e.store.GetLastFetchedCycle()
+					cycle, _ := e.store.GetOffsetFetchedCycle(0)
 					switch cycle {
 					case 0:
 						e.state.SetLastOnChainCompletedCycle(lastCompletedCycle - 1)

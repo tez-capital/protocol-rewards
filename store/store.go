@@ -80,10 +80,10 @@ func (s *Store) PruneDelegationState(cycle int64) error {
 
 }
 
-func (s *Store) GetLastFetchedCycle() (int64, error) {
+func (s *Store) GetOffsetFetchedCycle(offset int) (int64, error) {
 	var cycle int64
 
-	if err := s.db.Select("cycle").Order("cycle desc").First(&cycle).Error; err != nil {
+	if err := s.db.Select("cycle").Order("cycle desc").Offset(offset).First(&cycle).Error; err != nil {
 		if err == gorm.ErrRecordNotFound {
 			return 0, nil
 		}
