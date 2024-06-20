@@ -4,21 +4,18 @@ import (
 	"bytes"
 	"encoding/json"
 	"io"
-	"io/fs"
 	"log/slog"
 	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
-
-	"github.com/KarpelesLab/squashfs"
 )
 
 type TestTransport struct {
-	Transport  http.RoundTripper
-	CacheDir   string
-	sqfs       *squashfs.Superblock
-	pathPrefix string
+	Transport     http.RoundTripper
+	CacheDir      string
+	inMemoryCache map[string][]byte
+	pathPrefix    string
 }
 
 func getFilenameWithoutExt(path string) string {
@@ -36,20 +33,21 @@ func getFilenameWithoutExt(path string) string {
 	return filename
 }
 
-func NewTestTransport(transport http.RoundTripper, cacheDir, squashfsPath string) (*TestTransport, error) {
+func NewTestTransport(transport http.RoundTripper, cacheDir, cacheArchivePath string) (*TestTransport, error) {
 	result := &TestTransport{
 		Transport:  transport,
 		CacheDir:   cacheDir,
-		pathPrefix: getFilenameWithoutExt(squashfsPath),
+		pathPrefix: getFilenameWithoutExt(cacheArchivePath),
 	}
-	if squashfsPath != "" {
-		sqfs, err := squashfs.Open(squashfsPath)
-		switch {
-		case err != nil:
-			slog.Warn("failed to open squashfs", "error", err.Error())
-		default:
-			result.sqfs = sqfs
+
+	if cacheArchivePath != "" {
+		slog.Info("loading cache archive", "path", cacheArchivePath)
+		inMemoryCache, err := DecompressAndDeserializeCache(cacheArchivePath)
+		if err != nil {
+			slog.Warn("failed to load cache archive", "error", err.Error())
 		}
+		slog.Info("loaded cache archive", "count", len(inMemoryCache))
+		result.inMemoryCache = inMemoryCache
 	}
 
 	return result, nil
@@ -66,7 +64,7 @@ func (t *TestTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 	filename := t.cacheFilename(path)
 	filename = strings.TrimPrefix(filename, t.pathPrefix)
 
-	if data, err := fs.ReadFile(t.sqfs, filename); err == nil {
+	if data, ok := t.inMemoryCache[filename]; ok {
 		var tmp json.RawMessage
 		if err := json.Unmarshal(data, &tmp); err == nil {
 			return &http.Response{

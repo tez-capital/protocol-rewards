@@ -23,7 +23,7 @@ func run_test(ctx context.Context, testFlag string, config *configuration.Runtim
 	options := core.TestEngineOptions
 	if cacheId != nil {
 		var err error
-		options.Transport, err = test.NewTestTransport(http.DefaultTransport, *cacheId, *cacheId+".squashfs")
+		options.Transport, err = test.NewTestTransport(http.DefaultTransport, *cacheId, *cacheId+".gob.lz4")
 		if err != nil {
 			slog.Error("failed to create caching transport", "error", err)
 			return

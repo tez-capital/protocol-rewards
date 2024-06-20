@@ -52,7 +52,8 @@ func LoadConfiguration(path string) (*Runtime, error) {
 	}
 
 	if err = notifications.ValidateDiscordConfiguration(&runtimeConfig.DiscordNotificator); err != nil {
-		return nil, err
+		slog.Warn("discord configuration is invalid, notifications will not be sent", "error", err.Error())
+		//return nil, err
 	}
 
 	// if config has [rolling] storage mode but no stored_cycles (user forgot)
