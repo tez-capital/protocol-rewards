@@ -26,7 +26,7 @@ const (
 	DISCORD_WEBHOOK_REGEX = `https?:\/\/(?:ptb\.|canary\.)?discord\.com\/api(?:\/v\d{1,2})?\/webhooks\/(\d{17,19})\/([\w-]{68})`
 )
 
-func initDiscordNotificator(config *DiscordNotificatorConfiguration) (*DiscordNotificator, error) {
+func InitDiscordNotificator(config *DiscordNotificatorConfiguration) (*DiscordNotificator, error) {
 	id := config.WebhookId
 	token := config.WebhookToken
 	if config.WebhookUrl != "" {
@@ -88,23 +88,17 @@ func ValidateDiscordConfiguration(config *DiscordNotificatorConfiguration) error
 	return nil
 }
 
-func (dn *DiscordNotificator) AdminNotify(msg string) error {
+func (dn *DiscordNotificator) notify(msg string) error {
 	_, err := dn.session.WebhookExecute(dn.id, dn.token, true, &discordgo.WebhookParams{
 		Content: msg,
 	})
 	return err
 }
 
-func NotifyAdmin(config *DiscordNotificatorConfiguration, msg string) {
-
+func Notify(notificator *DiscordNotificator, msg string) {
 	slog.Debug("sending admin discord notification")
-	notificator, err := initDiscordNotificator(config)
-	if err != nil {
-		slog.Warn("failed to send notification", "error", err)
-	}
 
-	err = notificator.AdminNotify(msg)
-	if err != nil {
+	if err := notificator.notify(msg); err != nil {
 		slog.Warn("failed to send notification", "error", err)
 	}
 	slog.Debug("admin notification sent", "message", msg)

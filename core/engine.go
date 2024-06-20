@@ -17,12 +17,12 @@ import (
 )
 
 type Engine struct {
-	ctx                context.Context
-	collector          *rpcCollector
-	store              *store.Store
-	state              *state
-	notificationConfig *notifications.DiscordNotificatorConfiguration
-	logger             *slog.Logger
+	ctx         context.Context
+	collector   *rpcCollector
+	store       *store.Store
+	state       *state
+	notificator *notifications.DiscordNotificator
+	logger      *slog.Logger
 }
 
 type EngineOptions struct {
@@ -57,13 +57,18 @@ func NewEngine(ctx context.Context, config *configuration.Runtime, options *Engi
 		return nil, err
 	}
 
+	notificator, err := notifications.InitDiscordNotificator(&config.DiscordNotificator)
+	if err != nil {
+		slog.Warn("failed to initialize notificator", "error", err)
+	}
+
 	result := &Engine{
-		ctx:                ctx,
-		collector:          collector,
-		store:              store,
-		state:              newState(),
-		notificationConfig: &config.DiscordNotificator,
-		logger:             slog.Default(), // TODO: replace with custom logger
+		ctx:         ctx,
+		collector:   collector,
+		store:       store,
+		state:       newState(),
+		notificator: notificator,
+		logger:      slog.Default(), // TODO: replace with custom logger
 	}
 
 	if options.FetchAutomatically {
@@ -161,7 +166,7 @@ func (e *Engine) FetchCycleDelegationStates(ctx context.Context, cycle int64, op
 		if err != nil {
 			e.logger.Error("failed to fetch delegate delegation state", "cycle", cycle, "delegate", item.String(), "error", err.Error())
 			msg := fmt.Sprintf("Failed to fetch delegate %s delegation state on cycle %d", item.String(), cycle)
-			notifications.NotifyAdmin(e.notificationConfig, msg)
+			notifications.Notify(e.notificator, msg)
 			return false
 		}
 		slog.Info("finished fetching delegate delegation state", "cycle", cycle, "delegate", item.String())
