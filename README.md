@@ -18,6 +18,11 @@ config.hjson
       mode: rolling
       stored_cycles: 20
    }
+   discord_notificator: {
+      webhook_url: url
+      webhook_id: id
+      webhook_token: token
+   }
 }
 ```
 

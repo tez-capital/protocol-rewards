@@ -30,5 +30,5 @@
   - [x] we should fetch it from network parameters when starting because it can be different on testnets
   
 - [ ] configurable subset of delegates to track instead of all so people can run their mirrors with reduced overhead
-- [ ] webhook notifications for discord - notifies about errors fetching delegates
+- [x] webhook notifications for discord - notifies about errors fetching delegates
   - NOTE: FetchCycleDelegationStates - after `e.logger.Error("failed to fetch delegate delegation state", "cycle", cycle, "delegate", item.String(), "error", err.Error())`

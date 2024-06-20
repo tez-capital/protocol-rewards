@@ -14,8 +14,11 @@ require (
 	gorm.io/gorm v1.25.10
 )
 
+require github.com/gorilla/websocket v1.4.2 // indirect
+
 require (
 	github.com/andybalholm/brotli v1.1.0 // indirect
+	github.com/bwmarrin/discordgo v0.28.1
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/decred/dcrd/dcrec/secp256k1/v4 v4.3.0 // indirect
 	github.com/echa/bson v0.0.0-20220430141917-c0fbdf7f8b79 // indirect

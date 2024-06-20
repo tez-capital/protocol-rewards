@@ -13,4 +13,10 @@ var (
 	ErrDelegatorNotFoundInDelegationState = errors.New("delegator not found in delegation state")
 	ErrMinimumDelegatedBalanceNotFound    = errors.New("minimum delegated balance not found")
 	ErrFailedToFetchContractBalances      = errors.New("failed to fetch contract balances")
+
+	// notifications
+
+	ErrUnsupportedNotificator          = errors.New("unsupported notificator")
+	ErrPayoutDidNotFitTheBatch         = errors.New("payout did not fit the batch")
+	ErrInvalidNotificatorConfiguration = errors.New("invalid notificator configuration")
 )

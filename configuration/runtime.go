@@ -7,6 +7,7 @@ import (
 	"github.com/hjson/hjson-go/v4"
 	"github.com/joho/godotenv"
 	"github.com/tez-capital/ogun/constants"
+	"github.com/tez-capital/ogun/notifications"
 )
 
 type DatabaseConfiguration struct {
@@ -28,12 +29,13 @@ type StorageConfiguration struct {
 }
 
 type Runtime struct {
-	Providers     []string              `json:"providers"`
-	Database      DatabaseConfiguration `json:"database"`
-	Storage       StorageConfiguration  `json:"storage"`
-	LogLevel      slog.Level            `json:"-"`
-	Listen        string                `json:"-"`
-	PrivateListen string                `json:"-"`
+	Providers          []string                                      `json:"providers"`
+	Database           DatabaseConfiguration                         `json:"database"`
+	Storage            StorageConfiguration                          `json:"storage"`
+	DiscordNotificator notifications.DiscordNotificatorConfiguration `json:"discord_notificator"`
+	LogLevel           slog.Level                                    `json:"-"`
+	Listen             string                                        `json:"-"`
+	PrivateListen      string                                        `json:"-"`
 }
 
 func LoadConfiguration(path string) (*Runtime, error) {
@@ -46,6 +48,10 @@ func LoadConfiguration(path string) (*Runtime, error) {
 	var runtimeConfig Runtime
 	err = hjson.Unmarshal(configBytes, &runtimeConfig)
 	if err != nil {
+		return nil, err
+	}
+
+	if err = notifications.ValidateDiscordConfiguration(&runtimeConfig.DiscordNotificator); err != nil {
 		return nil, err
 	}
 

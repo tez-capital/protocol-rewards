@@ -3,6 +3,7 @@ package core
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"sync"
@@ -10,16 +11,18 @@ import (
 
 	"github.com/tez-capital/ogun/configuration"
 	"github.com/tez-capital/ogun/constants"
+	"github.com/tez-capital/ogun/notifications"
 	"github.com/tez-capital/ogun/store"
 	"github.com/trilitech/tzgo/tezos"
 )
 
 type Engine struct {
-	ctx       context.Context
-	collector *rpcCollector
-	store     *store.Store
-	state     *state
-	logger    *slog.Logger
+	ctx                context.Context
+	collector          *rpcCollector
+	store              *store.Store
+	state              *state
+	notificationConfig *notifications.DiscordNotificatorConfiguration
+	logger             *slog.Logger
 }
 
 type EngineOptions struct {
@@ -55,11 +58,12 @@ func NewEngine(ctx context.Context, config *configuration.Runtime, options *Engi
 	}
 
 	result := &Engine{
-		ctx:       ctx,
-		collector: collector,
-		store:     store,
-		state:     newState(),
-		logger:    slog.Default(), // TODO: replace with custom logger
+		ctx:                ctx,
+		collector:          collector,
+		store:              store,
+		state:              newState(),
+		notificationConfig: &config.DiscordNotificator,
+		logger:             slog.Default(), // TODO: replace with custom logger
 	}
 
 	if options.FetchAutomatically {
@@ -156,6 +160,8 @@ func (e *Engine) FetchCycleDelegationStates(ctx context.Context, cycle int64, op
 		err := e.fetchDelegateDelegationStateInternal(ctx, item, cycle, options)
 		if err != nil {
 			e.logger.Error("failed to fetch delegate delegation state", "cycle", cycle, "delegate", item.String(), "error", err.Error())
+			msg := fmt.Sprintf("Failed to fetch delegate %s delegation state on cycle %d", item.String(), cycle)
+			notifications.NotifyAdmin(e.notificationConfig, msg)
 			return false
 		}
 		slog.Info("finished fetching delegate delegation state", "cycle", cycle, "delegate", item.String())
