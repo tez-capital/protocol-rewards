@@ -3,10 +3,10 @@ module github.com/tez-capital/ogun
 go 1.22.4
 
 require (
-	github.com/KarpelesLab/squashfs v1.0.2
 	github.com/gofiber/fiber/v2 v2.52.4
 	github.com/hjson/hjson-go/v4 v4.4.0
 	github.com/joho/godotenv v1.5.1
+	github.com/pierrec/lz4/v4 v4.1.21
 	github.com/samber/lo v1.39.0
 	github.com/stretchr/testify v1.9.0
 	github.com/trilitech/tzgo v1.19.7-0.20240615084153-32cae2559148
@@ -14,14 +14,7 @@ require (
 	gorm.io/gorm v1.25.10
 )
 
-require (
-	github.com/CalebQ42/squashfs v1.0.0 // indirect
-	github.com/DataDog/golz4 v1.3.0 // indirect
-	github.com/gorilla/websocket v1.4.2 // indirect
-	github.com/pierrec/lz4/v4 v4.1.21 // indirect
-	github.com/rasky/go-lzo v0.0.0-20200203143853-96a758eda86e // indirect
-	github.com/therootcompany/xz v1.0.1 // indirect
-)
+require github.com/gorilla/websocket v1.4.2 // indirect
 
 require (
 	github.com/andybalholm/brotli v1.1.0 // indirect
@@ -32,7 +25,6 @@ require (
 	github.com/echa/log v1.2.4 // indirect
 	github.com/fatih/color v1.17.0 // indirect
 	github.com/google/uuid v1.6.0 // indirect
-	github.com/hanwen/go-fuse/v2 v2.5.1 // indirect
 	github.com/jackc/pgpassfile v1.0.0 // indirect
 	github.com/jackc/pgservicefile v0.0.0-20240606120523-5a60cdf6a761 // indirect
 	github.com/jackc/pgx/v5 v5.6.0 // indirect
@@ -46,7 +38,6 @@ require (
 	github.com/mattn/go-runewidth v0.0.15 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/rivo/uniseg v0.4.7 // indirect
-	github.com/ulikunitz/xz v0.5.12 // indirect
 	github.com/valyala/bytebufferpool v1.0.0 // indirect
 	github.com/valyala/fasthttp v1.54.0 // indirect
 	github.com/valyala/tcplisten v1.0.0 // indirect
