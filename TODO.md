@@ -10,8 +10,6 @@
 
 - [ ] test suite
   - [ ] add test more precise test for engine based on test data from test/data/745.squashfs
-    - [ ] this means add more squashfs samples as new cycles are produced
-  - [x] store test data in squashfs
   
 - [ ] deploy
   - [ ] prepare nginx config (I'll do this)
@@ -19,7 +17,7 @@
 - [x] found bugs
   - [x] tz1gXWW1q8NcXtVy2oVVcc2s4XKNzv9CryWd - 746 - minimum not found
   - [x] tz1bZ8vsMAXmaWEV7FRnyhcuUs2fYMaQ6Hkk - 746 - minimum not found
-  - [ ] NOTE: waiting for confirmation from NL engineers (should be tomorrow)
+  - [ ] NOTE: waiting for confirmation from NL engineers
 
 - [x] rolling/archive mode
   - [x] configurable through configuration
@@ -30,5 +28,3 @@
   - [x] we should fetch it from network parameters when starting because it can be different on testnets
   
 - [ ] configurable subset of delegates to track instead of all so people can run their mirrors with reduced overhead
-- [x] webhook notifications for discord - notifies about errors fetching delegates
-  - NOTE: FetchCycleDelegationStates - after `e.logger.Error("failed to fetch delegate delegation state", "cycle", cycle, "delegate", item.String(), "error", err.Error())`

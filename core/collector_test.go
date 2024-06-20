@@ -2,7 +2,6 @@ package core
 
 import (
 	"context"
-	"fmt"
 	"net/http"
 	"runtime/debug"
 	"sync"
@@ -19,7 +18,7 @@ var (
 )
 
 func getTransport() *test.TestTransport {
-	transport, err := test.NewTestTransport(http.DefaultTransport, "../test/data/745", "../test/data/745.tar.xz")
+	transport, err := test.NewTestTransport(http.DefaultTransport, "../test/data/745", "../test/data/745.gob.lz4")
 	if err != nil {
 		panic(err)
 	}
@@ -50,31 +49,19 @@ func TestGetDelegationStateNoStaking(t *testing.T) {
 	delegates, err := collector.GetActiveDelegatesFromCycle(defaultCtx, cycle)
 	assert.Nil(err)
 
-	channels := make(chan error, len(delegates))
-	var wg sync.WaitGroup
-	wg.Add(len(delegates))
-	for _, addr := range delegates {
-		go func(addr tezos.Address) {
-			defer wg.Done()
-			delegate, err := collector.GetDelegateFromCycle(defaultCtx, cycle, addr)
-			if err != nil {
-				channels <- err
-				return
-			}
-
-			_, err = collector.GetDelegationState(defaultCtx, delegate, 745)
-			if err != nil && err != constants.ErrDelegateHasNoMinimumDelegatedBalance {
-				channels <- err
-				return
-			}
-			channels <- nil
-		}(addr)
-	}
-	wg.Wait()
-	for i := 0; i < len(delegates); i++ {
-		if err := <-channels; err != nil {
-			fmt.Println(delegates[i].String())
+	err = runInParallel(defaultCtx, delegates, constants.OGUN_DELEGATE_FETCH_BATCH_SIZE, func(ctx context.Context, addr tezos.Address, mtx *sync.RWMutex) bool {
+		delegate, err := collector.GetDelegateFromCycle(defaultCtx, cycle, addr)
+		if err != nil {
+			assert.Nil(err)
+			return true
 		}
-		assert.Nil(<-channels)
-	}
+
+		_, err = collector.GetDelegationState(defaultCtx, delegate, 745)
+		if err != nil && err != constants.ErrDelegateHasNoMinimumDelegatedBalance {
+			assert.Nil(err)
+			return true
+		}
+		return false
+	})
+	assert.Nil(err)
 }
