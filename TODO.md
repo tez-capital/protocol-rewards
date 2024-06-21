@@ -13,18 +13,3 @@
   
 - [ ] deploy
   - [ ] prepare nginx config (I'll do this)
-
-- [x] found bugs
-  - [x] tz1gXWW1q8NcXtVy2oVVcc2s4XKNzv9CryWd - 746 - minimum not found
-  - [x] tz1bZ8vsMAXmaWEV7FRnyhcuUs2fYMaQ6Hkk - 746 - minimum not found
-  - [ ] NOTE: waiting for confirmation from NL engineers
-
-- [x] rolling/archive mode
-  - [x] configurable through configuration
-  - [x] implement rolling mode - remove cycles older than L - 20 where L is the last completed cycle (default)
-  - [x] implement archive mode - keep all cycles in the database
-
-- [x] add consensus round delay - e.g. if 2 api returns for cycle 747 results of cycle 745 
-  - [x] we should fetch it from network parameters when starting because it can be different on testnets
-  
-- [x] configurable subset of delegates to track instead of all so people can run their mirrors with reduced overhead

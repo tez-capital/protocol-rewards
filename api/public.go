@@ -4,8 +4,10 @@ import (
 	"errors"
 	"log/slog"
 	"strconv"
+	"time"
 
 	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/fiber/v2/middleware/limiter"
 	"github.com/tez-capital/ogun/configuration"
 	"github.com/tez-capital/ogun/constants"
 	"github.com/tez-capital/ogun/core"
@@ -113,6 +115,12 @@ func registerRewardsSplitMirror(app *fiber.App, engine *core.Engine) {
 
 func CreatePublicApi(config *configuration.Runtime, engine *core.Engine) *fiber.App {
 	app := fiber.New()
+
+	app.Use(limiter.New(limiter.Config{
+		Max:        10,
+		Expiration: 30 * time.Second,
+	}))
+
 	registerGetDelegationState(app, engine)
 	registerIsDelegationStateAvailable(app, engine)
 	registerRewardsSplitMirror(app, engine)
