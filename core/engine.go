@@ -158,8 +158,8 @@ func (e *Engine) getDelegates(ctx context.Context, cycle int64) ([]tezos.Address
 		return delegates, nil
 	}
 
-	delegates = lo.Filter[tezos.Address](delegates, func(d tezos.Address, _ int) bool {
-		return slices.Contains[[]tezos.Address, tezos.Address](e.delegates, d)
+	delegates = lo.Filter(delegates, func(d tezos.Address, _ int) bool {
+		return slices.Contains(e.delegates, d)
 	})
 
 	return delegates, nil
