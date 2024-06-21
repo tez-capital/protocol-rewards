@@ -19,6 +19,9 @@ services:
     ports:
       - "127.0.0.1:8080:8080"
       - "127.0.0.1:8081:8081"
+    environment:
+      LISTEN: 127.0.0.1:8080
+      PRIVATE_LISTEN: 127.0.0.1:8081
     volumes:
       - ./config.hjson:/config.hjson:ro
     depends_on:
