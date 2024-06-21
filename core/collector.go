@@ -276,7 +276,7 @@ func (engine *rpcCollector) fetchInitialDelegationState(ctx context.Context, del
 			balanceInfo, err := engine.fetchContractInitialBalanceInfo(ctx, address, blockWithMinimumId, lastBlockInCycle)
 
 			if err != nil {
-				slog.Debug("failed to fetch contract balance info", "address", address.String(), "error", err)
+				slog.Warn("failed to fetch contract balance info", "address", address.String(), "error", err)
 
 				mtx.Lock()
 				defer mtx.Unlock()

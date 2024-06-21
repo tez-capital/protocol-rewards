@@ -17,8 +17,8 @@ var (
 	defaultCtx context.Context = context.Background()
 )
 
-func getTransport() *test.TestTransport {
-	transport, err := test.NewTestTransport(http.DefaultTransport, "../test/data/745", "../test/data/745.gob.lz4")
+func getTransport(path string) *test.TestTransport {
+	transport, err := test.NewTestTransport(http.DefaultTransport, path, path+".gob.lz4")
 	if err != nil {
 		panic(err)
 	}
@@ -28,7 +28,7 @@ func getTransport() *test.TestTransport {
 func TestGetActiveDelegates(t *testing.T) {
 	assert := assert.New(t)
 
-	collector, err := newRpcCollector(defaultCtx, []string{"https://eu.rpc.tez.capital/", "https://rpc.tzkt.io/mainnet/"}, getTransport())
+	collector, err := newRpcCollector(defaultCtx, []string{"https://eu.rpc.tez.capital/", "https://rpc.tzkt.io/mainnet/"}, getTransport("../test/data/745"))
 	assert.Nil(err)
 
 	delegates, err := collector.GetActiveDelegatesFromCycle(defaultCtx, 745)
@@ -38,15 +38,38 @@ func TestGetActiveDelegates(t *testing.T) {
 
 func TestGetDelegationStateNoStaking(t *testing.T) {
 	assert := assert.New(t)
-
-	cycle := int64(745)
-
 	debug.SetMaxThreads(1000000)
 
-	collector, err := newRpcCollector(defaultCtx, []string{"https://eu.rpc.tez.capital/", "https://rpc.tzkt.io/mainnet/"}, getTransport())
+	// cycle 745
+	cycle := int64(745)
+	collector, err := newRpcCollector(defaultCtx, []string{"https://eu.rpc.tez.capital/", "https://rpc.tzkt.io/mainnet/"}, getTransport("../test/data/745"))
 	assert.Nil(err)
 
 	delegates, err := collector.GetActiveDelegatesFromCycle(defaultCtx, cycle)
+	assert.Nil(err)
+
+	err = runInParallel(defaultCtx, delegates, constants.OGUN_DELEGATE_FETCH_BATCH_SIZE, func(ctx context.Context, addr tezos.Address, mtx *sync.RWMutex) bool {
+		delegate, err := collector.GetDelegateFromCycle(defaultCtx, cycle, addr)
+		if err != nil {
+			assert.Nil(err)
+			return true
+		}
+
+		_, err = collector.GetDelegationState(defaultCtx, delegate, 745)
+		if err != nil && err != constants.ErrDelegateHasNoMinimumDelegatedBalance {
+			assert.Nil(err)
+			return true
+		}
+		return false
+	})
+	assert.Nil(err)
+
+	// cycle 746
+	cycle = int64(745)
+	collector, err = newRpcCollector(defaultCtx, []string{"https://eu.rpc.tez.capital/", "https://rpc.tzkt.io/mainnet/"}, getTransport("../test/data/746"))
+	assert.Nil(err)
+
+	delegates, err = collector.GetActiveDelegatesFromCycle(defaultCtx, cycle)
 	assert.Nil(err)
 
 	err = runInParallel(defaultCtx, delegates, constants.OGUN_DELEGATE_FETCH_BATCH_SIZE, func(ctx context.Context, addr tezos.Address, mtx *sync.RWMutex) bool {
