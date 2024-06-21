@@ -33,7 +33,7 @@ func registerGetDelegationState(app *fiber.App, engine *core.Engine) {
 
 		state, err := engine.GetDelegationState(c.Context(), address, cycle)
 		if err != nil {
-			if errors.Is(constants.ErrNotFound, err) {
+			if errors.Is(err, constants.ErrNotFound) {
 				return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
 					"error": "Delegation state not found",
 				})
@@ -92,7 +92,7 @@ func registerRewardsSplitMirror(app *fiber.App, engine *core.Engine) {
 
 		state, err := engine.GetDelegationState(c.Context(), address, cycle)
 		if err != nil {
-			if errors.Is(constants.ErrNotFound, err) {
+			if errors.Is(err, constants.ErrNotFound) {
 				return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
 					"error": "Delegation state not found",
 				})
