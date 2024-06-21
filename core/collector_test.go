@@ -65,7 +65,7 @@ func TestGetDelegationStateNoStaking(t *testing.T) {
 	assert.Nil(err)
 
 	// cycle 746
-	cycle = int64(745)
+	cycle = int64(746)
 	collector, err = newRpcCollector(defaultCtx, []string{"https://eu.rpc.tez.capital/", "https://rpc.tzkt.io/mainnet/"}, getTransport("../test/data/746"))
 	assert.Nil(err)
 
@@ -79,7 +79,7 @@ func TestGetDelegationStateNoStaking(t *testing.T) {
 			return true
 		}
 
-		_, err = collector.GetDelegationState(defaultCtx, delegate, 745)
+		_, err = collector.GetDelegationState(defaultCtx, delegate, cycle)
 		if err != nil && err != constants.ErrDelegateHasNoMinimumDelegatedBalance {
 			assert.Nil(err)
 			return true
