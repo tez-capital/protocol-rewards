@@ -6,9 +6,11 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"slices"
 	"sync"
 	"time"
 
+	"github.com/samber/lo"
 	"github.com/tez-capital/ogun/configuration"
 	"github.com/tez-capital/ogun/constants"
 	"github.com/tez-capital/ogun/notifications"
@@ -146,15 +148,19 @@ func (e *Engine) FetchDelegateDelegationState(ctx context.Context, delegateAddre
 }
 
 func (e *Engine) getDelegates(ctx context.Context, cycle int64) ([]tezos.Address, error) {
-	if len(*e.delegates) != 0 {
-		return *e.delegates, nil
-	}
-
 	delegates, err := e.collector.GetActiveDelegatesFromCycle(ctx, cycle)
 	if err != nil {
 		e.logger.Error("failed to fetch active delegates from cycle", "cycle", cycle, "error", err.Error())
 		return nil, err
 	}
+
+	if e.delegates == nil || len(*e.delegates) == 0 {
+		return delegates, nil
+	}
+
+	delegates = lo.Filter[tezos.Address](delegates, func(d tezos.Address, _ int) bool {
+		return slices.Contains[[]tezos.Address, tezos.Address](*e.delegates, d)
+	})
 
 	return delegates, nil
 }
