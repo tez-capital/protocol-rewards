@@ -46,7 +46,7 @@ func NewStore(config *configuration.Runtime) (*Store, error) {
 
 func (s *Store) GetDelegationState(delegate tezos.Address, cycle int64) (*StoredDelegationState, error) {
 	var state StoredDelegationState
-	if err := s.db.Where("delegate = ? AND cycle = ?", delegate, cycle).First(&state).Error; err != nil {
+	if err := s.db.Model(&StoredDelegationState{}).Where("delegate = ? AND cycle = ?", delegate, cycle).First(&state).Error; err != nil {
 		if err == gorm.ErrRecordNotFound {
 			return nil, errors.Join(constants.ErrNotFound, err)
 		}
