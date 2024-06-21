@@ -24,7 +24,7 @@ type Engine struct {
 	store       *store.Store
 	state       *state
 	notificator *notifications.DiscordNotificator
-	delegates   *[]tezos.Address
+	delegates   []tezos.Address
 	logger      *slog.Logger
 }
 
@@ -71,7 +71,7 @@ func NewEngine(ctx context.Context, config *configuration.Runtime, options *Engi
 		store:       store,
 		state:       newState(),
 		notificator: notificator,
-		delegates:   &config.Delegates,
+		delegates:   config.Delegates,
 		logger:      slog.Default(), // TODO: replace with custom logger
 	}
 
@@ -154,12 +154,12 @@ func (e *Engine) getDelegates(ctx context.Context, cycle int64) ([]tezos.Address
 		return nil, err
 	}
 
-	if e.delegates == nil || len(*e.delegates) == 0 {
+	if len(e.delegates) == 0 {
 		return delegates, nil
 	}
 
 	delegates = lo.Filter[tezos.Address](delegates, func(d tezos.Address, _ int) bool {
-		return slices.Contains[[]tezos.Address, tezos.Address](*e.delegates, d)
+		return slices.Contains[[]tezos.Address, tezos.Address](e.delegates, d)
 	})
 
 	return delegates, nil
