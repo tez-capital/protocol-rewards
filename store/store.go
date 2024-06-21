@@ -90,7 +90,7 @@ func (s *Store) IsDelegationStateAvailable(delegate tezos.Address, cycle int64) 
 func (s *Store) GetLastFetchedCycle() (int64, error) {
 	var cycle int64
 
-	if err := s.db.Select("cycle").Order("cycle desc").First(&cycle).Error; err != nil {
+	if err := s.db.Model(&StoredDelegationState{}).Select("cycle").Order("cycle desc").First(&cycle).Error; err != nil {
 		if err == gorm.ErrRecordNotFound {
 			return 0, nil
 		}
