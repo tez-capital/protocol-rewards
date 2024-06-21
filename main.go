@@ -14,6 +14,7 @@ import (
 
 	"github.com/tez-capital/ogun/api"
 	"github.com/tez-capital/ogun/configuration"
+	"github.com/tez-capital/ogun/constants"
 	"github.com/tez-capital/ogun/core"
 	"github.com/tez-capital/ogun/test"
 	"github.com/trilitech/tzgo/tezos"
@@ -66,6 +67,7 @@ func main() {
 	logLevel := flag.String("log", "", "set the desired log level")
 	isTest := flag.String("test", "", "run tests")
 	cacheId := flag.String("cache", "", "cache id")
+	versionFlag := flag.Bool("version", false, "print version")
 
 	ctx, cancel := context.WithCancel(context.Background())
 
@@ -80,6 +82,11 @@ func main() {
 	}
 
 	flag.Parse()
+
+	if *versionFlag {
+		fmt.Println("protocol-rewards version " + constants.VERSION)
+		os.Exit(0)
+	}
 
 	config, err := configuration.LoadConfiguration(*configPath)
 	if err != nil {
