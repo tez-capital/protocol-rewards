@@ -205,7 +205,11 @@ func (engine *rpcCollector) fetchContractInitialBalanceInfo(ctx context.Context,
 
 	delegate, err := engine.getContractDelegate(ctx, address, previousBlockId)
 	if err != nil {
-		return nil, errors.Join(constants.ErrFailedToFetchContract, err)
+		if httpStatus, ok := err.(rpc.HTTPStatus); ok && httpStatus.StatusCode() == http.StatusNotFound {
+			delegate = tezos.ZeroAddress // no delegate
+		} else {
+			return nil, errors.Join(constants.ErrFailedToFetchContract, err)
+		}
 	}
 
 	fullBalance, err := engine.getContractFullBalance(ctx, address, previousBlockId)

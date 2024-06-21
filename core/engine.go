@@ -199,6 +199,7 @@ func (e *Engine) FetchCycleDelegationStates(ctx context.Context, cycle int64, op
 		return err
 	}
 	slog.Info("finished fetching cycle delegation states", "cycle", cycle)
+	notifications.Notify(e.notificator, fmt.Sprintf("Finished fetching cycle %d delegation states", cycle))
 	return nil
 }
 

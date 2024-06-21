@@ -23,3 +23,7 @@ what to ask to NL engineers?
 it may happen that when we lookup min balance for cycle X it wont be available and we have to fetch it from previous cycle???
 - overstake from previous block or current?
 - is overstake caused by frozen deposits or other fields?
+
+
+tz1Q1GmjPwVxjxn81WMHmzdoFGjQDnw691b2
+tz1abmz7jiCV2GH2u81LRrGgAFFgvQgiDiaf

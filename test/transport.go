@@ -40,7 +40,7 @@ func NewTestTransport(transport http.RoundTripper, cacheDir, cacheArchivePath st
 		pathPrefix: getFilenameWithoutExt(cacheArchivePath),
 	}
 
-	if cacheArchivePath != "" {
+	if cacheArchivePath != "" && cacheArchivePath != ".gob.lz4" {
 		slog.Info("loading cache archive", "path", cacheArchivePath)
 		inMemoryCache, err := DecompressAndDeserializeCache(cacheArchivePath)
 		if err != nil {
