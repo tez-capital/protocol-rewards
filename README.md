@@ -23,6 +23,12 @@ config.hjson
       webhook_id: id
       webhook_token: token
    }
+   // optional subset if wanted, if not just delete it or keep it empty
+   delegates: [
+      tz1P6WKJu2rcbxKiKRZHKQKmKrpC9TfW1AwM
+      tz1LVqmufjrmV67vNmZWXRDPMwSCh7mLBnS3
+      tz1WzjeZrQm2JJT43rk7USfmnSQ2nLSebtta
+   ]
 }
 ```
 

@@ -8,6 +8,7 @@ import (
 	"github.com/joho/godotenv"
 	"github.com/tez-capital/ogun/constants"
 	"github.com/tez-capital/ogun/notifications"
+	"github.com/trilitech/tzgo/tezos"
 )
 
 type DatabaseConfiguration struct {
@@ -33,6 +34,7 @@ type Runtime struct {
 	Database           DatabaseConfiguration                         `json:"database"`
 	Storage            StorageConfiguration                          `json:"storage"`
 	DiscordNotificator notifications.DiscordNotificatorConfiguration `json:"discord_notificator"`
+	Delegates          []tezos.Address                               `json:"delegates,omitempty"`
 	LogLevel           slog.Level                                    `json:"-"`
 	Listen             string                                        `json:"-"`
 	PrivateListen      string                                        `json:"-"`

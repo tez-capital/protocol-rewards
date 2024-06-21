@@ -96,10 +96,10 @@ func (dn *DiscordNotificator) notify(msg string) error {
 }
 
 func Notify(notificator *DiscordNotificator, msg string) {
-	slog.Debug("sending admin discord notification")
+	slog.Debug("sending discord notification")
 
 	if err := notificator.notify(msg); err != nil {
 		slog.Warn("failed to send notification", "error", err)
 	}
-	slog.Debug("admin notification sent", "message", msg)
+	slog.Debug("discord notification sent", "message", msg)
 }

@@ -22,6 +22,7 @@ type Engine struct {
 	store       *store.Store
 	state       *state
 	notificator *notifications.DiscordNotificator
+	delegates   *[]tezos.Address
 	logger      *slog.Logger
 }
 
@@ -68,6 +69,7 @@ func NewEngine(ctx context.Context, config *configuration.Runtime, options *Engi
 		store:       store,
 		state:       newState(),
 		notificator: notificator,
+		delegates:   &config.Delegates,
 		logger:      slog.Default(), // TODO: replace with custom logger
 	}
 
@@ -143,6 +145,20 @@ func (e *Engine) FetchDelegateDelegationState(ctx context.Context, delegateAddre
 	return nil
 }
 
+func (e *Engine) getDelegates(ctx context.Context, cycle int64) ([]tezos.Address, error) {
+	if len(*e.delegates) != 0 {
+		return *e.delegates, nil
+	}
+
+	delegates, err := e.collector.GetActiveDelegatesFromCycle(ctx, cycle)
+	if err != nil {
+		e.logger.Error("failed to fetch active delegates from cycle", "cycle", cycle, "error", err.Error())
+		return nil, err
+	}
+
+	return delegates, nil
+}
+
 func (e *Engine) FetchCycleDelegationStates(ctx context.Context, cycle int64, options *FetchOptions) error {
 	slog.Info("fetching cycle delegation states", "cycle", cycle, "options", options)
 	lastCompletedCycle, err := e.collector.GetLastCompletedCycle(ctx)
@@ -155,9 +171,8 @@ func (e *Engine) FetchCycleDelegationStates(ctx context.Context, cycle int64, op
 		return constants.ErrCycleDidNotEndYet
 	}
 
-	delegates, err := e.collector.GetActiveDelegatesFromCycle(ctx, cycle)
+	delegates, err := e.getDelegates(ctx, cycle)
 	if err != nil {
-		e.logger.Error("failed to fetch active delegates from cycle", "cycle", cycle, "error", err.Error())
 		return err
 	}
 

@@ -27,4 +27,4 @@
 - [x] add consensus round delay - e.g. if 2 api returns for cycle 747 results of cycle 745 
   - [x] we should fetch it from network parameters when starting because it can be different on testnets
   
-- [ ] configurable subset of delegates to track instead of all so people can run their mirrors with reduced overhead
+- [x] configurable subset of delegates to track instead of all so people can run their mirrors with reduced overhead
