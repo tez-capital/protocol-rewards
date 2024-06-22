@@ -26,6 +26,7 @@ func TestOverstake(t *testing.T) {
 		StakedBalance:   1000,
 		UnstakedBalance: 0,
 		Baker:           baker,
+		StakeBaker:      baker,
 	})
 
 	delegator := tezos.MustParseAddress("tz1P6WKJu2rcbxKiKRZHKQKmKrpC9TfW1AwM")
@@ -35,6 +36,7 @@ func TestOverstake(t *testing.T) {
 		StakedBalance:   1000,
 		UnstakedBalance: 0,
 		Baker:           baker,
+		StakeBaker:      baker,
 	})
 
 	assert.Equal(int64(1), s.overstakeFactor().Div64(OVERSTAKE_PRECISION).Int64())
@@ -59,6 +61,7 @@ func TestOverstake(t *testing.T) {
 		StakedBalance:   1000,
 		UnstakedBalance: 0,
 		Baker:           baker,
+		StakeBaker:      baker,
 	})
 
 	assert.Equal(int64(750000), s.overstakeFactor().Int64())

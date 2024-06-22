@@ -42,6 +42,8 @@ type DelegationStateBalanceInfo struct {
 	StakedBalance   int64         `json:"frozen_deposits"`
 	UnstakedBalance int64         `json:"unfrozen_deposits"`
 	Baker           tezos.Address `json:"delegate"`
+	// baker we stake with, can differ in case of delegation change
+	StakeBaker tezos.Address `json:"stake_baker"`
 }
 
 type DelegationStateBalances map[tezos.Address]DelegationStateBalanceInfo
@@ -89,13 +91,13 @@ func NewDelegationState(delegate *rpc.Delegate, cycle int64) *DelegationState {
 func (d *DelegationState) overstakeFactor() tezos.Z {
 	bakerStakingBalance := d.GetBakerStakedBalance()
 	limit := tezos.NewZ(d.Parameters.LimitOfStakingOverBakingMillionth).Mul64(bakerStakingBalance).Div64(1_000_000)
-	stakersStakedBalance := tezos.NewZ(d.GetStakersStakedBalance())
-	if stakersStakedBalance.IsLess(limit) {
+	stakedBalance := tezos.NewZ(d.GetStakersStakedBalance())
+	if stakedBalance.IsLess(limit) {
 		return tezos.Zero
 	}
-	overLimit := stakersStakedBalance.Sub(limit)
+	overLimit := stakedBalance.Sub(limit)
 
-	return overLimit.Mul64(OVERSTAKE_PRECISION).Div(stakersStakedBalance)
+	return overLimit.Mul64(OVERSTAKE_PRECISION).Div(stakedBalance)
 }
 
 func (d *DelegationState) AddBalance(address tezos.Address, balanceInfo DelegationStateBalanceInfo) {
@@ -127,6 +129,7 @@ func (d *DelegationState) Delegate(delegator tezos.Address, delegate tezos.Addre
 	}
 
 	balanceInfo.Baker = delegate
+	balanceInfo.StakeBaker = delegate
 	d.balances[delegator] = balanceInfo
 	return nil
 }
@@ -157,17 +160,31 @@ func (d *DelegationState) GetDelegatorAndBakerBalances() DelegatedBalances {
 
 	delegators := make(DelegatedBalances, len(d.balances))
 	for addr, balanceInfo := range d.balances {
-		if !balanceInfo.Baker.Equal(d.Baker) {
-			continue // skip delegators which left
+		delegatorBalances := DelegatorBalances{}
+		var overstakedBalance int64
+
+		if balanceInfo.Baker.Equal(d.Baker) {
+			/* unstaked balance comes from block with minimum which corresponds with d.Baker, not from the actual stake so we include it here */
+			delegatorBalances.DelegatedBalance = balanceInfo.Balance + balanceInfo.UnstakedBalance
 		}
 
-		overstakedBalance := overstakeFactor.Mul64(balanceInfo.StakedBalance).Div64(OVERSTAKE_PRECISION).Int64()
+		if balanceInfo.StakeBaker.Equal(d.Baker) {
+			delegatorBalances.StakedBalance = balanceInfo.StakedBalance
+			if addr.Equal(d.Baker) { // baker balance is never overstaked
+				overstakedBalance = 0
+			} else {
+				overstakedBalance = overstakeFactor.Mul64(balanceInfo.StakedBalance).Div64(OVERSTAKE_PRECISION).Int64()
+			}
 
-		delegators[addr] = DelegatorBalances{
-			DelegatedBalance:  balanceInfo.Balance + balanceInfo.UnstakedBalance + overstakedBalance,
-			OverstakedBalance: overstakedBalance,
-			StakedBalance:     balanceInfo.StakedBalance,
+			delegatorBalances.OverstakedBalance = overstakedBalance
+			delegatorBalances.DelegatedBalance += overstakedBalance // include overstaked balance in delegated balance
 		}
+
+		if delegatorBalances.DelegatedBalance+delegatorBalances.StakedBalance == 0 {
+			continue // skip empty balances
+		}
+
+		delegators[addr] = delegatorBalances
 	}
 	return delegators
 }
@@ -188,7 +205,7 @@ func (d *DelegationState) GetStakersStakedBalance() int64 {
 		if addr.Equal(d.Baker) {
 			continue
 		}
-		if !balanceInfo.Baker.Equal(d.Baker) {
+		if !balanceInfo.StakeBaker.Equal(d.Baker) {
 			continue
 		}
 		stakedBalance += balanceInfo.StakedBalance

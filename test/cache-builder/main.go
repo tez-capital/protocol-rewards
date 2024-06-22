@@ -119,7 +119,7 @@ func main() {
 	outputFile := "cache.gob.lz4"
 
 	seed := ""
-	if len(os.Args) > 1 {
+	if len(os.Args) > 2 {
 		// seed
 		seed = os.Args[2]
 	}
