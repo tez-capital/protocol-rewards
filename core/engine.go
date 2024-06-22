@@ -124,6 +124,7 @@ func (e *Engine) fetchDelegateDelegationStateInternal(ctx context.Context, deleg
 	default:
 		storableState = store.CreateStoredDelegationStateFromDelegationState(state)
 	}
+	slog.Debug("fetched delegate delegation state", "cycle", cycle, "delegate", delegateAddress.String(), "baking_power", state.GetBakingPower())
 
 	return e.store.StoreDelegationState(storableState)
 }

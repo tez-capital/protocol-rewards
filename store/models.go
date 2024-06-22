@@ -129,6 +129,6 @@ func CreateStoredDelegationStateFromDelegationState(state *common.DelegationStat
 		Delegate: Address{state.Baker},
 		Cycle:    state.Cycle,
 		Status:   DelegationStateStatusOk,
-		Balances: DelegationStateBalances(state.DelegatorBalances()),
+		Balances: DelegationStateBalances(state.GetDelegatorAndBakerBalances()),
 	}
 }

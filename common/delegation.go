@@ -87,9 +87,9 @@ func NewDelegationState(delegate *rpc.Delegate, cycle int64) *DelegationState {
 }
 
 func (d *DelegationState) overstakeFactor() tezos.Z {
-	bakerStakingBalance := d.BakerStakingBalance()
+	bakerStakingBalance := d.GetBakerStakedBalance()
 	limit := tezos.NewZ(d.Parameters.LimitOfStakingOverBakingMillionth).Mul64(bakerStakingBalance).Div64(1_000_000)
-	stakersStakedBalance := tezos.NewZ(d.StakersStakedBalance())
+	stakersStakedBalance := tezos.NewZ(d.GetStakersStakedBalance())
 	if stakersStakedBalance.IsLess(limit) {
 		return tezos.Zero
 	}
@@ -131,7 +131,7 @@ func (d *DelegationState) Delegate(delegator tezos.Address, delegate tezos.Addre
 	return nil
 }
 
-func (d *DelegationState) DelegatorBalanceInfos() DelegationStateBalances {
+func (d *DelegationState) GetDelegatorBalanceInfos() DelegationStateBalances {
 	result := make(DelegationStateBalances, len(d.balances))
 	for addr, balanceInfo := range d.balances {
 		if addr.Equal(d.Baker) { // skip baker
@@ -145,24 +145,22 @@ func (d *DelegationState) DelegatorBalanceInfos() DelegationStateBalances {
 	return result
 }
 
-func (d *DelegationState) DelegatedBalance() int64 {
-	overstakeFactor := d.overstakeFactor()
-
-	bakerDelegatedBalance := d.BakerDelegatedBalance()
-
-	delegatedBalance := lo.Reduce(lo.Values(d.DelegatorBalanceInfos()), func(acc int64, balanceInfo DelegationStateBalanceInfo, _ int) int64 {
-		return acc + balanceInfo.Balance + balanceInfo.UnstakedBalance + overstakeFactor.Mul64(balanceInfo.StakedBalance).Div64(OVERSTAKE_PRECISION).Int64()
-	}, bakerDelegatedBalance)
-
-	return delegatedBalance
+func (d *DelegationState) GetDelegatedBalance() int64 {
+	return lo.Reduce(lo.Values(d.GetDelegatorAndBakerBalances()), func(acc int64, balance DelegatorBalances, _ int) int64 {
+		return acc + balance.DelegatedBalance
+	}, 0)
 }
 
 // includes baker own balance contributing to the total delegated balance
-func (d *DelegationState) DelegatorBalances() DelegatedBalances {
+func (d *DelegationState) GetDelegatorAndBakerBalances() DelegatedBalances {
 	overstakeFactor := d.overstakeFactor()
 
 	delegators := make(DelegatedBalances, len(d.balances))
 	for addr, balanceInfo := range d.balances {
+		if !balanceInfo.Baker.Equal(d.Baker) {
+			continue // skip delegators which left
+		}
+
 		overstakedBalance := overstakeFactor.Mul64(balanceInfo.StakedBalance).Div64(OVERSTAKE_PRECISION).Int64()
 
 		delegators[addr] = DelegatorBalances{
@@ -179,23 +177,36 @@ func (d *DelegationState) HasContractBalanceInfo(address tezos.Address) bool {
 	return ok
 }
 
-func (d *DelegationState) BakerDelegatedBalance() int64 {
-	balanceInfo := d.balances[d.Baker]
-	return balanceInfo.Balance + balanceInfo.UnstakedBalance
-}
-
-func (d *DelegationState) BakerStakingBalance() int64 {
+func (d *DelegationState) GetBakerStakedBalance() int64 {
 	balanceInfo := d.balances[d.Baker]
 	return balanceInfo.StakedBalance
 }
 
-func (d *DelegationState) StakersStakedBalance() int64 {
+func (d *DelegationState) GetStakersStakedBalance() int64 {
 	var stakedBalance int64
 	for addr, balanceInfo := range d.balances {
 		if addr.Equal(d.Baker) {
 			continue
 		}
+		if !balanceInfo.Baker.Equal(d.Baker) {
+			continue
+		}
 		stakedBalance += balanceInfo.StakedBalance
 	}
 	return stakedBalance
+}
+
+func (d *DelegationState) GetBakingPower() int64 {
+	balances := d.GetDelegatorAndBakerBalances()
+	stakedPower := lo.Reduce(lo.Values(balances), func(acc int64, balance DelegatorBalances, _ int) int64 {
+		return acc + balance.StakedBalance
+	}, 0)
+	delegatedPower := lo.Reduce(lo.Values(balances), func(acc int64, balance DelegatorBalances, _ int) int64 {
+		return acc + balance.DelegatedBalance
+	}, 0)
+
+	if d.Cycle < 748 {
+		return stakedPower + delegatedPower
+	}
+	return stakedPower + delegatedPower/2
 }
