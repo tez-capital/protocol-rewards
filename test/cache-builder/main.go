@@ -11,8 +11,17 @@ import (
 	"github.com/pierrec/lz4/v4"
 )
 
-func collectFilesConcurrent(dir string) (map[string][]byte, error) {
+func collectFilesConcurrent(dir string, seed string) (map[string][]byte, error) {
 	filesMap := make(map[string][]byte)
+	if seed != "" {
+		fmt.Println("creating from " + seed)
+		var err error
+		filesMap, err = decompressAndDeserializeCache(seed)
+		if err != nil {
+			return nil, err
+		}
+	}
+
 	var mu sync.Mutex
 	var wg sync.WaitGroup
 	fileCh := make(chan string)
@@ -61,6 +70,27 @@ func collectFilesConcurrent(dir string) (map[string][]byte, error) {
 	return filesMap, nil
 }
 
+func decompressAndDeserializeCache(inputFile string) (map[string][]byte, error) {
+	data, err := os.ReadFile(inputFile)
+	if err != nil {
+		return nil, err
+	}
+
+	// Decompress the data using LZ4
+	lz4Reader := lz4.NewReader(bytes.NewReader(data))
+	var decompressedBuf bytes.Buffer
+	_, err = decompressedBuf.ReadFrom(lz4Reader)
+	if err != nil {
+		return nil, err
+	}
+
+	// Deserialize the data
+	decoder := gob.NewDecoder(&decompressedBuf)
+	var filesMap map[string][]byte
+	err = decoder.Decode(&filesMap)
+	return filesMap, err
+}
+
 func serializeAndCompressFiles(filesMap map[string][]byte, outputFile string) error {
 	var buf bytes.Buffer
 	encoder := gob.NewEncoder(&buf)
@@ -88,7 +118,13 @@ func main() {
 	dir := os.Args[1] // replace with your directory
 	outputFile := "cache.gob.lz4"
 
-	filesMap, err := collectFilesConcurrent(dir)
+	seed := ""
+	if len(os.Args) > 1 {
+		// seed
+		seed = os.Args[2]
+	}
+
+	filesMap, err := collectFilesConcurrent(dir, seed)
 	if err != nil {
 		fmt.Println("Error collecting files:", err)
 		return
