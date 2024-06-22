@@ -13,8 +13,8 @@ var (
 )
 
 type state struct {
-	lastOnChainCompletedCycle int64
-	delegatesBeingFetched     map[int64][]tezos.Address
+	lastFetchedCycle      int64
+	delegatesBeingFetched map[int64][]tezos.Address
 }
 
 func newState() *state {
@@ -59,16 +59,16 @@ func (s *state) IsDelegateBeingFetched(cycle int64, delegate tezos.Address) bool
 	return slices.Contains(s.delegatesBeingFetched[cycle], delegate)
 }
 
-func (s *state) SetLastOnChainCompletedCycle(cycle int64) {
+func (s *state) SetLastFetchedCycle(cycle int64) {
 	mtx.Lock()
 	defer mtx.Unlock()
 
-	s.lastOnChainCompletedCycle = cycle
+	s.lastFetchedCycle = cycle
 }
 
 func (s *state) GetLastOnChainCompletedCycle() int64 {
 	mtx.RLock()
 	defer mtx.RUnlock()
 
-	return s.lastOnChainCompletedCycle
+	return s.lastFetchedCycle
 }
