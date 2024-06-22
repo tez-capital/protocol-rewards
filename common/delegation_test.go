@@ -11,8 +11,10 @@ import (
 func TestOverstake(t *testing.T) {
 	assert := assert.New(t)
 
+	baker := tezos.MustParseAddress("tz1KqTpEZ7Yob7QbPE4Hy4Wo8fHG8LhKxZSx")
+
 	s := NewDelegationState(&rpc.Delegate{
-		Delegate: tezos.MustParseAddress("tz1KqTpEZ7Yob7QbPE4Hy4Wo8fHG8LhKxZSx"),
+		Delegate: baker,
 	}, 745)
 
 	s.Parameters = &StakingParameters{
@@ -23,6 +25,7 @@ func TestOverstake(t *testing.T) {
 		Balance:         1000000000,
 		StakedBalance:   1000,
 		UnstakedBalance: 0,
+		Baker:           baker,
 	})
 
 	delegator := tezos.MustParseAddress("tz1P6WKJu2rcbxKiKRZHKQKmKrpC9TfW1AwM")
@@ -31,22 +34,23 @@ func TestOverstake(t *testing.T) {
 		Balance:         1000000000,
 		StakedBalance:   1000,
 		UnstakedBalance: 0,
+		Baker:           baker,
 	})
 
-	assert.True(s.overstakeFactor().Div64(OVERSTAKE_PRECISION).Equal(tezos.NewZ(1)))
+	assert.Equal(int64(1), s.overstakeFactor().Div64(OVERSTAKE_PRECISION).Int64())
 
 	s.Parameters = &StakingParameters{
 		LimitOfStakingOverBakingMillionth: 1000000,
 	}
 
-	assert.True(s.overstakeFactor().Div64(OVERSTAKE_PRECISION).Equal(tezos.NewZ(0)))
+	assert.Equal(int64(0), s.overstakeFactor().Div64(OVERSTAKE_PRECISION).Int64())
 
 	s.Parameters = &StakingParameters{
 		LimitOfStakingOverBakingMillionth: 500000,
 	}
 
-	assert.True(s.overstakeFactor().Equal(tezos.NewZ(500000)))
-	assert.Equal(s.GetDelegatorAndBakerBalances()[delegator].OverstakedBalance, int64(500))
+	assert.Equal(int64(500000), s.overstakeFactor().Int64())
+	assert.Equal(int64(500), s.GetDelegatorAndBakerBalances()[delegator].OverstakedBalance)
 
 	delegator2 := tezos.MustParseAddress("tz1S5WxdZR5f9NzsPXhr7L9L1vrEb5spZFur")
 
@@ -54,13 +58,14 @@ func TestOverstake(t *testing.T) {
 		Balance:         1000000000,
 		StakedBalance:   1000,
 		UnstakedBalance: 0,
+		Baker:           baker,
 	})
 
-	assert.True(s.overstakeFactor().Equal(tezos.NewZ(750000)))
-	assert.Equal(s.GetDelegatorAndBakerBalances()[delegator].OverstakedBalance, int64(750))
-	assert.Equal(s.GetDelegatorAndBakerBalances()[delegator2].OverstakedBalance, int64(750))
-	assert.Equal(s.GetDelegatorAndBakerBalances()[delegator].DelegatedBalance, int64(1000000000+750))
-	assert.Equal(s.GetDelegatorAndBakerBalances()[delegator2].DelegatedBalance, int64(1000000000+750))
-	assert.Equal(s.GetDelegatorAndBakerBalances()[delegator].StakedBalance, int64(1000))
-	assert.Equal(s.GetDelegatorAndBakerBalances()[delegator2].StakedBalance, int64(1000))
+	assert.Equal(int64(750000), s.overstakeFactor().Int64())
+	assert.Equal(int64(750), s.GetDelegatorAndBakerBalances()[delegator].OverstakedBalance)
+	assert.Equal(int64(750), s.GetDelegatorAndBakerBalances()[delegator2].OverstakedBalance)
+	assert.Equal(int64(1000000000+750), s.GetDelegatorAndBakerBalances()[delegator].DelegatedBalance)
+	assert.Equal(int64(1000000000+750), s.GetDelegatorAndBakerBalances()[delegator2].DelegatedBalance)
+	assert.Equal(int64(1000), s.GetDelegatorAndBakerBalances()[delegator].StakedBalance)
+	assert.Equal(int64(1000), s.GetDelegatorAndBakerBalances()[delegator2].StakedBalance)
 }
