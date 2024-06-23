@@ -88,25 +88,25 @@ func (e *Engine) fetchDelegateDelegationStateInternal(ctx context.Context, deleg
 	}
 
 	if !options.Force && e.state.IsDelegateBeingFetched(cycle, delegateAddress) {
-		slog.Debug("delegate delegation state is already being fetched", "cycle", cycle, "delegate", delegateAddress.String())
+		e.logger.Debug("delegate delegation state is already being fetched", "cycle", cycle, "delegate", delegateAddress.String())
 		return nil
 	}
 
 	if !options.Force {
 		_, err := e.store.GetDelegationState(delegateAddress, cycle)
 		if err == nil { // already fetched
-			slog.Debug("delegate delegation state already fetched", "cycle", cycle, "delegate", delegateAddress.String())
+			e.logger.Debug("delegate delegation state already fetched", "cycle", cycle, "delegate", delegateAddress.String())
 			return nil
 		}
 	}
 
-	slog.Debug("fetching delegate delegation state", "cycle", cycle, "delegate", delegateAddress.String())
+	e.logger.Debug("fetching delegate delegation state", "cycle", cycle, "delegate", delegateAddress.String())
 	e.state.AddDelegateBeingFetched(cycle, delegateAddress)
 	defer e.state.RemoveCycleBeingFetched(cycle, delegateAddress)
 
 	delegate, err := e.collector.GetDelegateFromCycle(ctx, cycle, delegateAddress)
 	if err != nil {
-		slog.Debug("failed to get delegate from", "cycle", cycle, "delegateAddress", delegateAddress, "error", err)
+		e.logger.Debug("failed to get delegate from", "cycle", cycle, "delegateAddress", delegateAddress, "error", err)
 		return err
 	}
 
@@ -124,16 +124,16 @@ func (e *Engine) fetchDelegateDelegationStateInternal(ctx context.Context, deleg
 	default:
 		storableState = store.CreateStoredDelegationStateFromDelegationState(state)
 	}
-	slog.Debug("fetched delegate delegation state", "cycle", cycle, "delegate", delegateAddress.String(), "baking_power", state.GetBakingPower())
+	e.logger.Debug("fetched delegate delegation state", "cycle", cycle, "delegate", delegateAddress.String(), "baking_power", state.GetBakingPower())
 
 	return e.store.StoreDelegationState(storableState)
 }
 
 func (e *Engine) FetchDelegateDelegationState(ctx context.Context, delegateAddress tezos.Address, cycle int64, options *FetchOptions) error {
-	slog.Info("fetching delegate delegation state", "cycle", cycle, "delegate", delegateAddress.String(), "force_fetch", options)
+	e.logger.Info("fetching delegate delegation state", "cycle", cycle, "delegate", delegateAddress.String(), "force_fetch", options)
 	lastCompletedCycle, err := e.collector.GetLastCompletedCycle(ctx)
 	if err != nil {
-		slog.Error("failed to get last completed cycle", "error", err)
+		e.logger.Error("failed to get last completed cycle", "error", err)
 		return err
 	}
 	if cycle > lastCompletedCycle {
@@ -144,7 +144,7 @@ func (e *Engine) FetchDelegateDelegationState(ctx context.Context, delegateAddre
 		e.logger.Error("failed to fetch delegate delegation state", "cycle", cycle, "delegate", delegateAddress.String(), "error", err.Error())
 		return err
 	}
-	slog.Info("finished fetching delegate delegation state", "cycle", cycle, "delegate", delegateAddress.String())
+	e.logger.Info("finished fetching delegate delegation state", "cycle", cycle, "delegate", delegateAddress.String())
 	return nil
 }
 
@@ -167,7 +167,7 @@ func (e *Engine) getDelegates(ctx context.Context, cycle int64) ([]tezos.Address
 }
 
 func (e *Engine) FetchCycleDelegationStates(ctx context.Context, cycle int64, options *FetchOptions) error {
-	slog.Info("fetching cycle delegation states", "cycle", cycle, "options", options)
+	e.logger.Info("fetching cycle delegation states", "cycle", cycle, "options", options)
 	lastCompletedCycle, err := e.collector.GetLastCompletedCycle(ctx)
 	if err != nil {
 		e.logger.Error("failed to fetch last completed cycle number", "error", err.Error())
@@ -191,15 +191,15 @@ func (e *Engine) FetchCycleDelegationStates(ctx context.Context, cycle int64, op
 			notifications.Notify(e.notificator, msg)
 			return false
 		}
-		slog.Info("finished fetching delegate delegation state", "cycle", cycle, "delegate", item.String())
+		e.logger.Info("finished fetching delegate delegation state", "cycle", cycle, "delegate", item.String())
 		return false
 	})
 
 	if err != nil {
-		slog.Error("failed to fetch cycle", "cycle", cycle, "error", err.Error())
+		e.logger.Error("failed to fetch cycle", "cycle", cycle, "error", err.Error())
 		return err
 	}
-	slog.Info("finished fetching cycle delegation states", "cycle", cycle)
+	e.logger.Info("finished fetching cycle delegation states", "cycle", cycle)
 	notifications.Notify(e.notificator, fmt.Sprintf("Finished fetching cycle %d delegation states", cycle))
 	return nil
 }
@@ -233,12 +233,13 @@ func (e *Engine) fetchAutomatically() {
 					return
 				}
 
-				if e.state.lastFetchedCycle == lastOnChainCompletedCycle {
-					slog.Debug("no new cycle completed", "last_on_chain_completed_cycle", e.state.lastFetchedCycle, "last_completed_cycle", lastOnChainCompletedCycle)
+				lastFetchedCycle := e.state.GetLastFetchedCycle()
+				if lastFetchedCycle == lastOnChainCompletedCycle {
+					e.logger.Debug("no new cycle completed", "last_fetched_cycle", lastFetchedCycle, "last_on_chain_completed_cycle", lastOnChainCompletedCycle)
 					continue
 				}
 
-				if e.state.lastFetchedCycle == 0 {
+				if lastFetchedCycle == 0 {
 					cycle, _ := e.store.GetLastFetchedCycle()
 					switch cycle {
 					case 0:
@@ -246,13 +247,14 @@ func (e *Engine) fetchAutomatically() {
 					default:
 						e.state.SetLastFetchedCycle(cycle)
 					}
+					lastFetchedCycle = e.state.GetLastFetchedCycle()
 				}
 
-				if e.state.lastFetchedCycle+1 <= lastOnChainCompletedCycle {
-					e.logger.Info("fetching missing delegation states", "last_on_chain_completed_cycle", e.state.lastFetchedCycle, "last_completed_cycle", lastOnChainCompletedCycle)
+				if lastFetchedCycle+1 <= lastOnChainCompletedCycle {
+					e.logger.Info("fetching missing delegation states", "last_fetched_cycle", e.state.lastFetchedCycle, "last_on_chain_completed_cycle", lastOnChainCompletedCycle)
 				}
 
-				for cycle := e.state.lastFetchedCycle + 1; cycle <= lastOnChainCompletedCycle; cycle++ {
+				for cycle := lastFetchedCycle + 1; cycle <= lastOnChainCompletedCycle; cycle++ {
 					if err = e.FetchCycleDelegationStates(e.ctx, cycle, nil); err != nil {
 						e.logger.Error("failed to fetch cycle delegation states", "cycle", cycle, "error", err.Error())
 					}

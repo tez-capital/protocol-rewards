@@ -66,7 +66,7 @@ func (s *state) SetLastFetchedCycle(cycle int64) {
 	s.lastFetchedCycle = cycle
 }
 
-func (s *state) GetLastOnChainCompletedCycle() int64 {
+func (s *state) GetLastFetchedCycle() int64 {
 	mtx.RLock()
 	defer mtx.RUnlock()
 
