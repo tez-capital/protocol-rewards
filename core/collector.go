@@ -153,9 +153,19 @@ func (engine *rpcCollector) getDelegateDelegatedContracts(ctx context.Context, a
 	return attemptWithClients(engine.rpcs, func(client *rpc.Client) ([]tezos.Address, error) {
 		var delegatedContracts []tezos.Address
 		err := client.Get(ctx, u, &delegatedContracts)
-		if err != nil && strings.Contains(err.Error(), "delegate.not_registered") { // return empty list if delegate is not registered yet
-			return []tezos.Address{}, nil
+		if err != nil {
+			var rpcErrors []rpc.GenericError
+			err2 := client.Get(ctx, u, &rpcErrors)
+			if err2 != nil {
+				return nil, err
+			}
+			for _, rpcError := range rpcErrors {
+				if strings.Contains(rpcError.ID, "delegate.not_registered") {
+					return []tezos.Address{}, constants.ErrDelegateNotRegistered
+				}
+			}
 		}
+
 		return delegatedContracts, err
 	})
 }
@@ -228,7 +238,7 @@ func (engine *rpcCollector) fetchContractInitialBalanceInfo(ctx context.Context,
 		return client.GetContractBalance(ctx, address, blockBeforeMinimumId)
 	})
 	if err != nil {
-		return nil, errors.Join(constants.ErrFailedToFetchContract, err)
+		return nil, errors.Join(constants.ErrFailedToFetchContractBalance, err)
 	}
 
 	delegate, err := engine.getContractDelegate(ctx, address, blockBeforeMinimumId)
@@ -242,7 +252,7 @@ func (engine *rpcCollector) fetchContractInitialBalanceInfo(ctx context.Context,
 
 	unstakeRequests, err := engine.getContractUnstakeRequests(ctx, address, blockBeforeMinimumId)
 	if err != nil {
-		return nil, errors.Join(constants.ErrFailedToFetchContract, err)
+		return nil, errors.Join(constants.ErrFailedToFetchContractUnstakeRequests, err)
 	}
 
 	stakedBalance, err := engine.getContractStakedBalance(ctx, address, lastBlockInCycle)
@@ -283,8 +293,13 @@ func (engine *rpcCollector) fetchInitialDelegationState(ctx context.Context, del
 	state.Parameters = params
 
 	// but we fill the rest from delegate state at the beginning of the block
+	newlyRegistered := false
 	delegateDelegatedContracts, err := engine.getDelegateDelegatedContracts(ctx, delegate.Delegate, blockBeforeMinimumId)
-	if err != nil {
+	switch err {
+	case constants.ErrDelegateNotRegistered:
+		newlyRegistered = true
+	case nil:
+	default:
 		return nil, err
 	}
 
@@ -351,18 +366,24 @@ func (engine *rpcCollector) fetchInitialDelegationState(ctx context.Context, del
 		return nil, constants.ErrFailedToFetchContractBalances
 	}
 
-	// fetch expected delegated balance and determine extra
+	// there is no raw context for newly registered delegates so skip this part
+	if !newlyRegistered {
+		// fetch expected delegated balance and determine extra
+		// fetch expected delegated balance and determine extra
 
-	expectedDelegated, err := engine.getDelegatedBalanceFromRawContext(ctx, delegate.Delegate, blockBeforeMinimumId)
-	if err != nil {
-		return nil, errors.Join(constants.ErrFailedToFetchContract, err)
-	}
+		// fetch expected delegated balance and determine extra
 
-	if expectedDelegated.Int64() > state.GetDelegatedBalance() {
-		state.AddBalance(tezos.BurnAddress, common.DelegationStateBalanceInfo{
-			Balance: expectedDelegated.Int64() - state.GetDelegatedBalance(),
-			Baker:   delegate.Delegate,
-		})
+		expectedDelegated, err := engine.getDelegatedBalanceFromRawContext(ctx, delegate.Delegate, blockBeforeMinimumId)
+		if err != nil {
+			return nil, errors.Join(constants.ErrFailedToFetchContractDelegated, err)
+		}
+
+		if expectedDelegated.Int64() > state.GetDelegatedBalance() {
+			state.AddBalance(tezos.BurnAddress, common.DelegationStateBalanceInfo{
+				Balance: expectedDelegated.Int64() - state.GetDelegatedBalance(),
+				Baker:   delegate.Delegate,
+			})
+		}
 	}
 
 	return state, nil
