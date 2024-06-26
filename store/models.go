@@ -88,7 +88,7 @@ func (s *StoredDelegationState) OwnDelegatedbalance() common.DelegatorBalances {
 func (s *StoredDelegationState) ExternalDelegatedBalance() common.DelegatorBalances {
 	result := common.DelegatorBalances{}
 	for addr, balances := range s.Balances {
-		if addr != s.Delegate.Address {
+		if !addr.Equal(s.Delegate.Address) {
 			result.DelegatedBalance += balances.DelegatedBalance
 			result.OverstakedBalance += balances.OverstakedBalance
 			result.StakedBalance += balances.StakedBalance
@@ -100,7 +100,7 @@ func (s *StoredDelegationState) ExternalDelegatedBalance() common.DelegatorBalan
 func (s *StoredDelegationState) ToTzktState() *TzktLikeDelegationState {
 	delegators := make([]TzktDelegator, 0, len(s.Balances)-1)
 	for addr, balances := range s.Balances {
-		if addr != s.Delegate.Address {
+		if !addr.Equal(s.Delegate.Address) && !addr.Equal(tezos.BurnAddress) {
 			delegators = append(delegators, TzktDelegator{
 				Address:          addr,
 				DelegatedBalance: balances.DelegatedBalance,

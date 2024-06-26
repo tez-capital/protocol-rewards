@@ -234,7 +234,7 @@ func (e *Engine) fetchAutomatically() {
 				}
 
 				lastFetchedCycle := e.state.GetLastFetchedCycle()
-				if lastFetchedCycle == lastOnChainCompletedCycle {
+				if lastFetchedCycle >= lastOnChainCompletedCycle {
 					e.logger.Debug("no new cycle completed", "last_fetched_cycle", lastFetchedCycle, "last_on_chain_completed_cycle", lastOnChainCompletedCycle)
 					continue
 				}

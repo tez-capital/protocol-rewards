@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"math/rand"
 	"net/http"
+	"strings"
 	"sync"
 	"time"
 
@@ -103,23 +104,26 @@ func (engine *rpcCollector) getContractStakedBalance(ctx context.Context, addr t
 	})
 }
 
-func (engine *rpcCollector) getContractUnstakedFrozenBalance(ctx context.Context, addr tezos.Address, id rpc.BlockID) (tezos.Z, error) {
-	u := fmt.Sprintf("chains/main/blocks/%s/context/contracts/%s/unstaked_frozen_balance", id, addr)
+func (engine *rpcCollector) getDelegatedBalanceFromRawContext(ctx context.Context, delegate tezos.Address, id rpc.BlockID) (tezos.Z, error) {
+	u := fmt.Sprintf("chains/main/blocks/%s/context/raw/json/staking_balance/%s", id, delegate)
 
 	return attemptWithClients(engine.rpcs, func(client *rpc.Client) (tezos.Z, error) {
-		var bal tezos.Z
+		var bal struct {
+			Delegated tezos.Z `json:"delegated"`
+		}
 		err := client.Get(ctx, u, &bal)
-		return bal, err
+		return bal.Delegated, err
 	})
 }
 
-func (engine *rpcCollector) getContractUnstakedFinalizableBalance(ctx context.Context, addr tezos.Address, id rpc.BlockID) (tezos.Z, error) {
-	u := fmt.Sprintf("chains/main/blocks/%s/context/contracts/%s/unstaked_finalizable_balance", id, addr)
+func (engine *rpcCollector) getContractUnstakeRequests(ctx context.Context, addr tezos.Address, id rpc.BlockID) (common.UnstakeRequests, error) {
+	// chains/main/blocks/5896790/context/contracts/tz1epK8fDnc8tUeK6dNwTjiHqrGzX586ozyt/unstake_requests
+	u := fmt.Sprintf("chains/main/blocks/%s/context/contracts/%s/unstake_requests", id, addr)
 
-	return attemptWithClients(engine.rpcs, func(client *rpc.Client) (tezos.Z, error) {
-		var bal tezos.Z
-		err := client.Get(ctx, u, &bal)
-		return bal, err
+	return attemptWithClients(engine.rpcs, func(client *rpc.Client) (common.UnstakeRequests, error) {
+		var requests common.UnstakeRequests
+		err := client.Get(ctx, u, &requests)
+		return requests, err
 	})
 }
 
@@ -140,6 +144,19 @@ func (engine *rpcCollector) getDelegateActiveStakingParameters(ctx context.Conte
 		var params common.StakingParameters
 		err := client.Get(ctx, u, &params)
 		return &params, err
+	})
+}
+
+func (engine *rpcCollector) getDelegateDelegatedContracts(ctx context.Context, addr tezos.Address, id rpc.BlockID) ([]tezos.Address, error) {
+	u := fmt.Sprintf("chains/main/blocks/%s/context/delegates/%s/delegated_contracts", id, addr)
+
+	return attemptWithClients(engine.rpcs, func(client *rpc.Client) ([]tezos.Address, error) {
+		var delegatedContracts []tezos.Address
+		err := client.Get(ctx, u, &delegatedContracts)
+		if err != nil && strings.Contains(err.Error(), "delegate.not_registered") { // return empty list if delegate is not registered yet
+			return []tezos.Address{}, nil
+		}
+		return delegatedContracts, err
 	})
 }
 
@@ -204,7 +221,7 @@ func (engine *rpcCollector) GetDelegateFromCycle(ctx context.Context, cycle int6
 }
 
 // fetches the balance of the contract at the beginning of the block - basically the balance of the contract at the end of the previous block
-func (engine *rpcCollector) fetchContractInitialBalanceInfo(ctx context.Context, address tezos.Address, blockWithMinimumId rpc.BlockID, lastBlockInCycle rpc.BlockID) (*common.DelegationStateBalanceInfo, error) {
+func (engine *rpcCollector) fetchContractInitialBalanceInfo(ctx context.Context, address tezos.Address, baker tezos.Address, blockWithMinimumId rpc.BlockID, lastBlockInCycle rpc.BlockID) (*common.DelegationStateBalanceInfo, error) {
 	blockBeforeMinimumId := rpc.NewBlockOffset(blockWithMinimumId, -1)
 
 	balance, err := attemptWithClients(engine.rpcs, func(client *rpc.Client) (tezos.Z, error) {
@@ -223,12 +240,7 @@ func (engine *rpcCollector) fetchContractInitialBalanceInfo(ctx context.Context,
 		}
 	}
 
-	unstakedFrozen, err := engine.getContractUnstakedFrozenBalance(ctx, address, blockBeforeMinimumId)
-	if err != nil {
-		return nil, errors.Join(constants.ErrFailedToFetchContract, err)
-	}
-
-	unstakedFinalizableBalance, err := engine.getContractUnstakedFinalizableBalance(ctx, address, blockBeforeMinimumId)
+	unstakeRequests, err := engine.getContractUnstakeRequests(ctx, address, blockBeforeMinimumId)
 	if err != nil {
 		return nil, errors.Join(constants.ErrFailedToFetchContract, err)
 	}
@@ -251,7 +263,7 @@ func (engine *rpcCollector) fetchContractInitialBalanceInfo(ctx context.Context,
 		// actual delegated balance is the balance of the contract plus the sum of the actual amounts of the unfrozen deposits
 		Balance:         balance.Int64(),
 		StakedBalance:   stakedBalance.Int64(),
-		UnstakedBalance: unstakedFrozen.Int64() + unstakedFinalizableBalance.Int64(),
+		UnstakedBalance: unstakeRequests.GetUnstakedTotalForBaker(baker),
 		Baker:           delegate,
 		StakeBaker:      stakeDelegate,
 	}, nil
@@ -271,9 +283,7 @@ func (engine *rpcCollector) fetchInitialDelegationState(ctx context.Context, del
 	state.Parameters = params
 
 	// but we fill the rest from delegate state at the beginning of the block
-	delegate, err = attemptWithClients(engine.rpcs, func(client *rpc.Client) (*rpc.Delegate, error) {
-		return client.GetDelegate(ctx, delegate.Delegate, blockBeforeMinimumId)
-	})
+	delegateDelegatedContracts, err := engine.getDelegateDelegatedContracts(ctx, delegate.Delegate, blockBeforeMinimumId)
 	if err != nil {
 		return nil, err
 	}
@@ -291,12 +301,7 @@ func (engine *rpcCollector) fetchInitialDelegationState(ctx context.Context, del
 		return nil, errors.Join(constants.ErrFailedToFetchContract, err)
 	}
 
-	unstakedFrozen, err := engine.getContractUnstakedFrozenBalance(ctx, delegate.Delegate, blockBeforeMinimumId)
-	if err != nil {
-		return nil, errors.Join(constants.ErrFailedToFetchContract, err)
-	}
-
-	unstakedFinalizableBalance, err := engine.getContractUnstakedFinalizableBalance(ctx, delegate.Delegate, blockBeforeMinimumId)
+	unstakeRequests, err := engine.getContractUnstakeRequests(ctx, delegate.Delegate, blockBeforeMinimumId)
 	if err != nil {
 		return nil, errors.Join(constants.ErrFailedToFetchContract, err)
 	}
@@ -304,12 +309,12 @@ func (engine *rpcCollector) fetchInitialDelegationState(ctx context.Context, del
 	state.AddBalance(delegate.Delegate, common.DelegationStateBalanceInfo{
 		Balance:         balance.Int64(),
 		StakedBalance:   stakedBalance.Int64(),
-		UnstakedBalance: unstakedFrozen.Int64() + unstakedFinalizableBalance.Int64(),
+		UnstakedBalance: unstakeRequests.GetUnstakedTotalForBaker(delegate.Delegate),
 		Baker:           delegate.Delegate,
 		StakeBaker:      delegate.Delegate,
 	})
 
-	toCollect := lo.Filter(delegate.DelegatedContracts, func(address tezos.Address, _ int) bool {
+	toCollect := lo.Filter(delegateDelegatedContracts, func(address tezos.Address, _ int) bool {
 		return address != delegate.Delegate // baker is already included in the state
 	})
 
@@ -318,7 +323,7 @@ func (engine *rpcCollector) fetchInitialDelegationState(ctx context.Context, del
 		toCollect = make([]tezos.Address, 0)
 		// add the balance of the delegated contracts
 		runInParallel(ctx, toCollectNow, constants.CONTRACT_FETCH_BATCH_SIZE, func(ctx context.Context, address tezos.Address, mtx *sync.RWMutex) (cancel bool) {
-			balanceInfo, err := engine.fetchContractInitialBalanceInfo(ctx, address, blockWithMinimumId, lastBlockInCycle)
+			balanceInfo, err := engine.fetchContractInitialBalanceInfo(ctx, address, delegate.Delegate, blockWithMinimumId, lastBlockInCycle)
 
 			if err != nil {
 				slog.Warn("failed to fetch contract balance info", "address", address.String(), "error", err)
@@ -344,6 +349,20 @@ func (engine *rpcCollector) fetchInitialDelegationState(ctx context.Context, del
 
 	if len(toCollect) > 0 {
 		return nil, constants.ErrFailedToFetchContractBalances
+	}
+
+	// fetch expected delegated balance and determine extra
+
+	expectedDelegated, err := engine.getDelegatedBalanceFromRawContext(ctx, delegate.Delegate, blockBeforeMinimumId)
+	if err != nil {
+		return nil, errors.Join(constants.ErrFailedToFetchContract, err)
+	}
+
+	if expectedDelegated.Int64() > state.GetDelegatedBalance() {
+		state.AddBalance(tezos.BurnAddress, common.DelegationStateBalanceInfo{
+			Balance: expectedDelegated.Int64() - state.GetDelegatedBalance(),
+			Baker:   delegate.Delegate,
+		})
 	}
 
 	return state, nil
@@ -386,7 +405,7 @@ func (engine *rpcCollector) getBlockBalanceUpdates(ctx context.Context, state *c
 
 					if !state.HasContractBalanceInfo(content.Source) {
 						// fetch
-						balanceInfo, err := engine.fetchContractInitialBalanceInfo(ctx, content.Source, blockLevelWithMinimumBalance, lastBlockInCycle)
+						balanceInfo, err := engine.fetchContractInitialBalanceInfo(ctx, content.Source, state.Baker, blockLevelWithMinimumBalance, lastBlockInCycle)
 						if err != nil {
 							return nil, err
 						}
@@ -420,7 +439,7 @@ func (engine *rpcCollector) getBlockBalanceUpdates(ctx context.Context, state *c
 					if internalResult.Kind == tezos.OpTypeDelegation {
 						if !state.HasContractBalanceInfo(internalResult.Source) {
 							// fetch
-							balanceInfo, err := engine.fetchContractInitialBalanceInfo(ctx, internalResult.Source, blockLevelWithMinimumBalance, lastBlockInCycle)
+							balanceInfo, err := engine.fetchContractInitialBalanceInfo(ctx, internalResult.Source, state.Baker, blockLevelWithMinimumBalance, lastBlockInCycle)
 							if err != nil {
 								return nil, err
 							}

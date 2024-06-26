@@ -28,6 +28,40 @@ type StakingParameters struct {
 	EdgeOfBakingOverStakingBillionth  int64 `json:"edge_of_baking_over_staking_billionth"`
 }
 
+type FinalizableUnstakeRequest struct {
+	Delegate tezos.Address `json:"delegate"`
+	Amount   tezos.Z       `json:"amount"`
+	Cycle    int64         `json:"cycle"`
+}
+
+type UnfinalizableUnstakeRequests struct {
+	Delegate tezos.Address `json:"delegate"`
+	Requests []struct {
+		Amount tezos.Z `json:"amount"`
+		Cycle  int64   `json:"cycle"`
+	} `json:"requests"`
+}
+
+type UnstakeRequests struct {
+	Finalizable   []FinalizableUnstakeRequest  `json:"finalizable"`
+	Unfinalizable UnfinalizableUnstakeRequests `json:"unfinalizable"`
+}
+
+func (u *UnstakeRequests) GetUnstakedTotalForBaker(baker tezos.Address) int64 {
+	total := tezos.Zero
+	for _, request := range u.Finalizable {
+		if request.Delegate.Equal(baker) {
+			total = total.Add(request.Amount)
+		}
+	}
+	if u.Unfinalizable.Delegate.Equal(baker) {
+		for _, request := range u.Unfinalizable.Requests {
+			total = total.Add(request.Amount)
+		}
+	}
+	return total.Int64()
+}
+
 type DelegatorBalances struct {
 	DelegatedBalance int64 `json:"delegated_balance"`
 	// protion of staked balance included in delegated balance
