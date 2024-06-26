@@ -154,6 +154,9 @@ func (engine *rpcCollector) getDelegateDelegatedContracts(ctx context.Context, a
 		var delegatedContracts []tezos.Address
 		err := client.Get(ctx, u, &delegatedContracts)
 		if err != nil {
+			if strings.Contains(err.Error(), "delegate.not_registered") {
+				return []tezos.Address{}, constants.ErrDelegateNotRegistered
+			}
 			var rpcErrors []rpc.GenericError
 			err2 := client.Get(ctx, u, &rpcErrors)
 			if err2 != nil {
@@ -302,6 +305,8 @@ func (engine *rpcCollector) fetchInitialDelegationState(ctx context.Context, del
 	default:
 		return nil, err
 	}
+
+	fmt.Println("not here")
 
 	balance, err := attemptWithClients(engine.rpcs, func(client *rpc.Client) (tezos.Z, error) {
 		return client.GetContractBalance(ctx, delegate.Delegate, blockBeforeMinimumId)
