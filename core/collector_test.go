@@ -120,3 +120,42 @@ func TestGetDelegationState(t *testing.T) {
 	})
 	assert.Nil(err)
 }
+
+func TestCycle749RaceConditions(t *testing.T) {
+	assert := assert.New(t)
+	debug.SetMaxThreads(1000000)
+	/*
+		- tz1S5WxdZR5f9NzsPXhr7L9L1vrEb5spZFur
+		- tz1eu3mkvEjzPgGoRMuKY7EHHtSwz88VxS31
+		- tz3LV9aGKHDnAZHCtC9SjNtTrKRu678FqSki
+		- tz1aKxnrzx5PXZJe7unufEswVRCMU9yafmfb
+		- tz1ZgkTFmiwddPXGbs4yc6NWdH4gELW7wsnv
+	*/
+	cycle := int64(749)
+	collector, err := newRpcCollector(defaultCtx, []string{"https://eu.rpc.tez.capital/", "https://rpc.tzkt.io/mainnet/"}, getTransport(fmt.Sprintf("../test/data/%d", cycle)))
+	assert.Nil(err)
+
+	delegates := []tezos.Address{
+		tezos.MustParseAddress("tz1S5WxdZR5f9NzsPXhr7L9L1vrEb5spZFur"),
+		tezos.MustParseAddress("tz1eu3mkvEjzPgGoRMuKY7EHHtSwz88VxS31"),
+		tezos.MustParseAddress("tz3LV9aGKHDnAZHCtC9SjNtTrKRu678FqSki"),
+		tezos.MustParseAddress("tz1aKxnrzx5PXZJe7unufEswVRCMU9yafmfb"),
+		tezos.MustParseAddress("tz1ZgkTFmiwddPXGbs4yc6NWdH4gELW7wsnv"),
+	}
+
+	err = runInParallel(defaultCtx, delegates, constants.OGUN_DELEGATE_FETCH_BATCH_SIZE, func(ctx context.Context, addr tezos.Address, mtx *sync.RWMutex) bool {
+		delegate, err := collector.GetDelegateFromCycle(defaultCtx, cycle, addr)
+		if err != nil {
+			assert.Nil(err)
+			return true
+		}
+
+		_, err = collector.GetDelegationState(defaultCtx, delegate, cycle)
+		if err != nil && err != constants.ErrDelegateHasNoMinimumDelegatedBalance {
+			assert.Nil(err)
+			return true
+		}
+		return false
+	})
+	assert.Nil(err)
+}

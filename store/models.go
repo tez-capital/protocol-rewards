@@ -102,8 +102,9 @@ func (s *StoredDelegationState) ToTzktState() *TzktLikeDelegationState {
 	for addr, balances := range s.Balances {
 		if !addr.Equal(s.Delegate.Address) && !addr.Equal(tezos.BurnAddress) {
 			delegators = append(delegators, TzktDelegator{
-				Address:          addr,
-				DelegatedBalance: balances.DelegatedBalance,
+				Address: addr,
+				// move overstaked balance to delegated balance
+				DelegatedBalance: balances.DelegatedBalance + balances.OverstakedBalance,
 				StakedBalance:    balances.StakedBalance - balances.OverstakedBalance,
 			})
 		}

@@ -211,7 +211,6 @@ func (d *DelegationState) GetDelegatorAndBakerBalances() DelegatedBalances {
 			}
 
 			delegatorBalances.OverstakedBalance = overstakedBalance
-			delegatorBalances.DelegatedBalance += overstakedBalance // include overstaked balance in delegated balance
 		}
 
 		if delegatorBalances.DelegatedBalance+delegatorBalances.StakedBalance == 0 {
