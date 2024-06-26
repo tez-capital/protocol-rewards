@@ -67,8 +67,8 @@ func TestOverstake(t *testing.T) {
 	assert.Equal(int64(750000), s.overstakeFactor().Int64())
 	assert.Equal(int64(750), s.GetDelegatorAndBakerBalances()[delegator].OverstakedBalance)
 	assert.Equal(int64(750), s.GetDelegatorAndBakerBalances()[delegator2].OverstakedBalance)
-	assert.Equal(int64(1000000000+750), s.GetDelegatorAndBakerBalances()[delegator].DelegatedBalance)
-	assert.Equal(int64(1000000000+750), s.GetDelegatorAndBakerBalances()[delegator2].DelegatedBalance)
+	assert.Equal(int64(1000000000), s.GetDelegatorAndBakerBalances()[delegator].DelegatedBalance)
+	assert.Equal(int64(1000000000), s.GetDelegatorAndBakerBalances()[delegator2].DelegatedBalance)
 	assert.Equal(int64(1000), s.GetDelegatorAndBakerBalances()[delegator].StakedBalance)
 	assert.Equal(int64(1000), s.GetDelegatorAndBakerBalances()[delegator2].StakedBalance)
 }
