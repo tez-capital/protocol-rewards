@@ -1,6 +1,6 @@
 package constants
 
 const (
-	VERSION  = "0.0.15"
+	VERSION  = "0.0.16"
 	CODENAME = "ogun"
 )
