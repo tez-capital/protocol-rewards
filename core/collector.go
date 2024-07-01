@@ -241,6 +241,10 @@ func (engine *rpcCollector) fetchContractInitialBalanceInfo(ctx context.Context,
 		return client.GetContractBalance(ctx, address, blockBeforeMinimumId)
 	})
 	if err != nil {
+		if httpStatus, ok := err.(rpc.HTTPStatus); ok && httpStatus.StatusCode() == http.StatusNotFound {
+			return &common.DelegationStateBalanceInfo{}, nil
+		}
+
 		return nil, errors.Join(constants.ErrFailedToFetchContractBalance, err)
 	}
 
@@ -305,8 +309,12 @@ func (engine *rpcCollector) fetchInitialDelegationState(ctx context.Context, del
 	default:
 		return nil, err
 	}
-
-	fmt.Println("not here")
+	// there may be new stakers at the end of the cycle so we have to check the end of the cycle as well
+	delegateDelegatedContractsAtTheEndOfCycle, err := engine.getDelegateDelegatedContracts(ctx, delegate.Delegate, lastBlockInCycle)
+	if err != nil {
+		return nil, err
+	}
+	delegateDelegatedContracts = lo.Uniq(append(delegateDelegatedContracts, delegateDelegatedContractsAtTheEndOfCycle...))
 
 	balance, err := attemptWithClients(engine.rpcs, func(client *rpc.Client) (tezos.Z, error) {
 		return client.GetContractBalance(ctx, delegate.Delegate, blockBeforeMinimumId)
@@ -374,10 +382,6 @@ func (engine *rpcCollector) fetchInitialDelegationState(ctx context.Context, del
 	// there is no raw context for newly registered delegates so skip this part
 	if !newlyRegistered {
 		// fetch expected delegated balance and determine extra
-		// fetch expected delegated balance and determine extra
-
-		// fetch expected delegated balance and determine extra
-
 		expectedDelegated, err := engine.getDelegatedBalanceFromRawContext(ctx, delegate.Delegate, blockBeforeMinimumId)
 		if err != nil {
 			return nil, errors.Join(constants.ErrFailedToFetchContractDelegated, err)
