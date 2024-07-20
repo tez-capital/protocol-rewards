@@ -286,7 +286,6 @@ func (engine *rpcCollector) fetchContractInitialBalanceInfo(ctx context.Context,
 	}
 
 	return &common.DelegationStateBalanceInfo{
-		// actual delegated balance is the balance of the contract plus the sum of the actual amounts of the unfrozen deposits
 		Balance:         balance.Int64(),
 		StakedBalance:   stakedBalance.Int64(),
 		UnstakedBalance: unstakeRequests.GetUnstakedTotalForBaker(baker),
@@ -295,14 +294,14 @@ func (engine *rpcCollector) fetchContractInitialBalanceInfo(ctx context.Context,
 	}, nil
 }
 
-func (engine *rpcCollector) getUnstakeRequestsCandidates(delegate tezos.Address) ([]tezos.Address, error) {
+func (engine *rpcCollector) getUnstakeRequestsCandidates(delegate tezos.Address, blockLevel int64) ([]tezos.Address, error) {
 	var result []tezos.Address
 	var err error
 
 	// try 3 times
 	for i := 0; i < 3; i++ {
 		for _, clientUrl := range engine.tzktUrls {
-			url := fmt.Sprintf("%sv1/staking/unstake_requests?baker=%s&firstLevel.le=6016401&select=staker.address&staker.ne=%s&staker.null=false&limit=10000", clientUrl, delegate.String(), delegate.String())
+			url := fmt.Sprintf("%sv1/staking/unstake_requests?firstLevel.le=%d&baker=%s&select=staker.address&staker.ne=%s&staker.null=false&limit=10000", clientUrl, blockLevel, delegate.String(), delegate.String())
 			slog.Debug("fetching unstake requests candidates", "url", url)
 			response, err := engine.client.Get(url)
 			if err != nil {
@@ -357,7 +356,7 @@ func (engine *rpcCollector) fetchInitialDelegationState(ctx context.Context, del
 		return nil, err
 	}
 	// get potential unstake requests candidates
-	unstakeRequestsCandidates, err := engine.getUnstakeRequestsCandidates(delegate.Delegate)
+	unstakeRequestsCandidates, err := engine.getUnstakeRequestsCandidates(delegate.Delegate, blockWithMinimumId.Int64())
 	if err != nil {
 		return nil, err
 	}
@@ -391,7 +390,7 @@ func (engine *rpcCollector) fetchInitialDelegationState(ctx context.Context, del
 	state.AddBalance(delegate.Delegate, common.DelegationStateBalanceInfo{
 		Balance:         balance.Int64(),
 		StakedBalance:   stakedBalance.Int64(),
-		UnstakedBalance: unstakeRequests.GetUnstakedTotalForBaker(delegate.Delegate),
+		UnstakedBalance: unstakeRequests.GetUnstakedTotal(),
 		Baker:           delegate.Delegate,
 		StakeBaker:      delegate.Delegate,
 	})
