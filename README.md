@@ -7,6 +7,9 @@ config.hjson
       https://eu.rpc.tez.capital/
       https://rpc.tzkt.io/mainnet/
    ]
+   tzkt_providers: [
+       https://api.tzkt.io/
+   ]
    database: {
       host: 127.0.0.1
       port: 5432
