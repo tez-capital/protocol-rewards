@@ -9,6 +9,11 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
+)
+
+var (
+	cacheMtx sync.RWMutex = sync.RWMutex{}
 )
 
 type TestTransport struct {
@@ -59,11 +64,16 @@ func (t *TestTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 	}
 
 	path := req.URL.Path
-
+	if strings.Contains("api.tzkt.io", req.URL.Host) { // we need full path for tzkt
+		path = path + req.URL.RawQuery
+	}
 	path = strings.TrimPrefix(path, "/mainnet")
+
 	filename := t.cacheFilename(path)
 	filename = strings.TrimPrefix(filename, t.pathPrefix)
 
+	cacheMtx.RLock()
+	defer cacheMtx.RUnlock()
 	if data, ok := t.inMemoryCache[filename]; ok {
 		var tmp json.RawMessage
 		if err := json.Unmarshal(data, &tmp); err == nil {

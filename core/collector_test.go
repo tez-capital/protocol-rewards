@@ -31,7 +31,7 @@ func TestGetActiveDelegates(t *testing.T) {
 
 	cycle := 745
 
-	collector, err := newRpcCollector(defaultCtx, []string{"https://eu.rpc.tez.capital/", "https://rpc.tzkt.io/mainnet/"}, getTransport(fmt.Sprintf("../test/data/%d", cycle)))
+	collector, err := newRpcCollector(defaultCtx, []string{"https://eu.rpc.tez.capital/", "https://rpc.tzkt.io/mainnet/"}, []string{"https://api.tzkt.io"}, getTransport(fmt.Sprintf("../test/data/%d", cycle)))
 	assert.Nil(err)
 
 	delegates, err := collector.GetActiveDelegatesFromCycle(defaultCtx, 745)
@@ -45,13 +45,13 @@ func TestGetDelegationStateNoStaking(t *testing.T) {
 
 	// cycle 745
 	cycle := int64(745)
-	collector, err := newRpcCollector(defaultCtx, []string{"https://eu.rpc.tez.capital/", "https://rpc.tzkt.io/mainnet/"}, getTransport(fmt.Sprintf("../test/data/%d", cycle)))
+	collector, err := newRpcCollector(defaultCtx, []string{"https://eu.rpc.tez.capital/", "https://rpc.tzkt.io/mainnet/"}, []string{"https://api.tzkt.io"}, getTransport(fmt.Sprintf("../test/data/%d", cycle)))
 	assert.Nil(err)
 
 	delegates, err := collector.GetActiveDelegatesFromCycle(defaultCtx, cycle)
 	assert.Nil(err)
 
-	err = runInParallel(defaultCtx, delegates, constants.OGUN_DELEGATE_FETCH_BATCH_SIZE, func(ctx context.Context, addr tezos.Address, mtx *sync.RWMutex) bool {
+	err = runInParallel(defaultCtx, delegates, 100, func(ctx context.Context, addr tezos.Address, mtx *sync.RWMutex) bool {
 		delegate, err := collector.GetDelegateFromCycle(defaultCtx, cycle, addr)
 		if err != nil {
 			assert.Nil(err)
@@ -69,13 +69,13 @@ func TestGetDelegationStateNoStaking(t *testing.T) {
 
 	// cycle 746
 	cycle = int64(746)
-	collector, err = newRpcCollector(defaultCtx, []string{"https://eu.rpc.tez.capital/", "https://rpc.tzkt.io/mainnet/"}, getTransport(fmt.Sprintf("../test/data/%d", cycle)))
+	collector, err = newRpcCollector(defaultCtx, []string{"https://eu.rpc.tez.capital/", "https://rpc.tzkt.io/mainnet/"}, []string{"https://api.tzkt.io"}, getTransport(fmt.Sprintf("../test/data/%d", cycle)))
 	assert.Nil(err)
 
 	delegates, err = collector.GetActiveDelegatesFromCycle(defaultCtx, cycle)
 	assert.Nil(err)
 
-	err = runInParallel(defaultCtx, delegates, constants.OGUN_DELEGATE_FETCH_BATCH_SIZE, func(ctx context.Context, addr tezos.Address, mtx *sync.RWMutex) bool {
+	err = runInParallel(defaultCtx, delegates, 100, func(ctx context.Context, addr tezos.Address, mtx *sync.RWMutex) bool {
 		delegate, err := collector.GetDelegateFromCycle(defaultCtx, cycle, addr)
 		if err != nil {
 			assert.Nil(err)
@@ -98,13 +98,13 @@ func TestGetDelegationState(t *testing.T) {
 
 	// cycle 748
 	cycle := int64(748)
-	collector, err := newRpcCollector(defaultCtx, []string{"https://eu.rpc.tez.capital/", "https://rpc.tzkt.io/mainnet/"}, getTransport(fmt.Sprintf("../test/data/%d", cycle)))
+	collector, err := newRpcCollector(defaultCtx, []string{"https://eu.rpc.tez.capital/", "https://rpc.tzkt.io/mainnet/"}, []string{"https://api.tzkt.io"}, getTransport(fmt.Sprintf("../test/data/%d", cycle)))
 	assert.Nil(err)
 
 	delegates, err := collector.GetActiveDelegatesFromCycle(defaultCtx, cycle)
 	assert.Nil(err)
 
-	err = runInParallel(defaultCtx, delegates, constants.OGUN_DELEGATE_FETCH_BATCH_SIZE, func(ctx context.Context, addr tezos.Address, mtx *sync.RWMutex) bool {
+	err = runInParallel(defaultCtx, delegates, 100, func(ctx context.Context, addr tezos.Address, mtx *sync.RWMutex) bool {
 		delegate, err := collector.GetDelegateFromCycle(defaultCtx, cycle, addr)
 		if err != nil {
 			assert.Nil(err)
@@ -126,7 +126,7 @@ func TestCycle749RaceConditions(t *testing.T) {
 	debug.SetMaxThreads(1000000)
 
 	cycle := int64(749)
-	collector, err := newRpcCollector(defaultCtx, []string{"https://eu.rpc.tez.capital/", "https://rpc.tzkt.io/mainnet/"}, getTransport(fmt.Sprintf("../test/data/%d", cycle)))
+	collector, err := newRpcCollector(defaultCtx, []string{"https://eu.rpc.tez.capital/", "https://rpc.tzkt.io/mainnet/"}, []string{"https://api.tzkt.io"}, getTransport(fmt.Sprintf("../test/data/%d", cycle)))
 	assert.Nil(err)
 
 	delegates := []tezos.Address{
@@ -139,7 +139,7 @@ func TestCycle749RaceConditions(t *testing.T) {
 		tezos.MustParseAddress("tz3Uzceas5ZauAh47FkKEVLupFoXstWq7MbX"),
 	}
 
-	err = runInParallel(defaultCtx, delegates, constants.OGUN_DELEGATE_FETCH_BATCH_SIZE, func(ctx context.Context, addr tezos.Address, mtx *sync.RWMutex) bool {
+	err = runInParallel(defaultCtx, delegates, 100, func(ctx context.Context, addr tezos.Address, mtx *sync.RWMutex) bool {
 		delegate, err := collector.GetDelegateFromCycle(defaultCtx, cycle, addr)
 		if err != nil {
 			assert.Nil(err)

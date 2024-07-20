@@ -48,7 +48,7 @@ func NewEngine(ctx context.Context, config *configuration.Runtime, options *Engi
 		options = DefaultEngineOptions
 	}
 
-	collector, err := newRpcCollector(ctx, config.Providers, options.Transport)
+	collector, err := newRpcCollector(ctx, config.Providers, config.TzktProviders, options.Transport)
 	if err != nil {
 		slog.Error("failed to create new RPC Collector", "error", err)
 		return nil, err

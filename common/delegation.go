@@ -1,6 +1,8 @@
 package common
 
 import (
+	"sync"
+
 	"github.com/samber/lo"
 	"github.com/tez-capital/ogun/constants"
 	"github.com/trilitech/tzgo/rpc"
@@ -62,6 +64,17 @@ func (u *UnstakeRequests) GetUnstakedTotalForBaker(baker tezos.Address) int64 {
 	return total.Int64()
 }
 
+func (u *UnstakeRequests) GetUnstakedTotal() int64 {
+	total := tezos.Zero
+	for _, request := range u.Finalizable {
+		total = total.Add(request.Amount)
+	}
+	for _, request := range u.Unfinalizable.Requests {
+		total = total.Add(request.Amount)
+	}
+	return total.Int64()
+}
+
 type DelegatorBalances struct {
 	DelegatedBalance int64 `json:"delegated_balance"`
 	// protion of staked balance included in delegated balance
@@ -111,14 +124,16 @@ type DelegationState struct {
 
 	CreatedAt DelegationStateCreationInfo `json:"created_at"`
 
-	balances DelegationStateBalances
+	balances    DelegationStateBalances
+	balancesMtx sync.RWMutex
 }
 
 func NewDelegationState(delegate *rpc.Delegate, cycle int64) *DelegationState {
 	return &DelegationState{
-		Baker:    delegate.Delegate,
-		Cycle:    cycle,
-		balances: make(DelegationStateBalances),
+		Baker:       delegate.Delegate,
+		Cycle:       cycle,
+		balances:    make(DelegationStateBalances),
+		balancesMtx: sync.RWMutex{},
 	}
 }
 
@@ -135,11 +150,15 @@ func (d *DelegationState) overstakeFactor() tezos.Z {
 }
 
 func (d *DelegationState) AddBalance(address tezos.Address, balanceInfo DelegationStateBalanceInfo) {
+	d.balancesMtx.Lock()
+	defer d.balancesMtx.Unlock()
 	d.balances[address] = balanceInfo
 }
 
 func (d *DelegationState) UpdateBalance(address tezos.Address, kind string, change int64) error {
+	d.balancesMtx.RLock()
 	balanceInfo, ok := d.balances[address]
+	d.balancesMtx.RUnlock()
 	if !ok {
 		return constants.ErrBalanceNotFoundInDelegationState
 	}
@@ -152,23 +171,32 @@ func (d *DelegationState) UpdateBalance(address tezos.Address, kind string, chan
 		balanceInfo.Balance += change
 	}
 
+	d.balancesMtx.Lock()
+	defer d.balancesMtx.Unlock()
 	d.balances[address] = balanceInfo
 	return nil
 }
 
 func (d *DelegationState) Delegate(delegator tezos.Address, delegate tezos.Address) error {
+	d.balancesMtx.RLock()
 	balanceInfo, ok := d.balances[delegator]
+	d.balancesMtx.RUnlock()
 	if !ok {
 		return constants.ErrDelegatorNotFoundInDelegationState
 	}
 
 	balanceInfo.Baker = delegate
 	balanceInfo.StakeBaker = delegate
+
+	d.balancesMtx.Lock()
+	defer d.balancesMtx.Unlock()
 	d.balances[delegator] = balanceInfo
 	return nil
 }
 
 func (d *DelegationState) GetDelegatorBalanceInfos() DelegationStateBalances {
+	d.balancesMtx.RLock()
+	defer d.balancesMtx.RUnlock()
 	result := make(DelegationStateBalances, len(d.balances))
 	for addr, balanceInfo := range d.balances {
 		if addr.Equal(d.Baker) { // skip baker
@@ -192,14 +220,19 @@ func (d *DelegationState) GetDelegatedBalance() int64 {
 func (d *DelegationState) GetDelegatorAndBakerBalances() DelegatedBalances {
 	overstakeFactor := d.overstakeFactor()
 
+	d.balancesMtx.RLock()
+	defer d.balancesMtx.RUnlock()
+
 	delegators := make(DelegatedBalances, len(d.balances))
 	for addr, balanceInfo := range d.balances {
 		delegatorBalances := DelegatorBalances{}
 		var overstakedBalance int64
 
+		// unstaked balance is always for the baker we are checking
+		delegatorBalances.DelegatedBalance = balanceInfo.UnstakedBalance
 		if balanceInfo.Baker.Equal(d.Baker) {
 			/* unstaked balance comes from block with minimum which corresponds with d.Baker, not from the actual stake so we include it here */
-			delegatorBalances.DelegatedBalance = balanceInfo.Balance + balanceInfo.UnstakedBalance
+			delegatorBalances.DelegatedBalance += balanceInfo.Balance
 		}
 
 		if balanceInfo.StakeBaker.Equal(d.Baker) {
@@ -223,16 +256,24 @@ func (d *DelegationState) GetDelegatorAndBakerBalances() DelegatedBalances {
 }
 
 func (d *DelegationState) HasContractBalanceInfo(address tezos.Address) bool {
+	d.balancesMtx.RLock()
+	defer d.balancesMtx.RUnlock()
 	_, ok := d.balances[address]
 	return ok
 }
 
 func (d *DelegationState) GetBakerStakedBalance() int64 {
+	d.balancesMtx.RLock()
+	defer d.balancesMtx.RUnlock()
+
 	balanceInfo := d.balances[d.Baker]
 	return balanceInfo.StakedBalance
 }
 
 func (d *DelegationState) GetStakersStakedBalance() int64 {
+	d.balancesMtx.RLock()
+	defer d.balancesMtx.RUnlock()
+
 	var stakedBalance int64
 	for addr, balanceInfo := range d.balances {
 		if addr.Equal(d.Baker) {

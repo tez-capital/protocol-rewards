@@ -31,6 +31,7 @@ type StorageConfiguration struct {
 
 type Runtime struct {
 	Providers          []string                                      `json:"providers"`
+	TzktProviders      []string                                      `json:"tzkt_providers"`
 	Database           DatabaseConfiguration                         `json:"database"`
 	Storage            StorageConfiguration                          `json:"storage"`
 	DiscordNotificator notifications.DiscordNotificatorConfiguration `json:"discord_notificator"`

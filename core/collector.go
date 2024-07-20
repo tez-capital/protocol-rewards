@@ -2,6 +2,7 @@ package core
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -19,7 +20,9 @@ import (
 )
 
 type rpcCollector struct {
-	rpcs []*rpc.Client
+	rpcs     []*rpc.Client
+	tzktUrls []string
+	client   *http.Client
 }
 
 func attemptWithClients[T interface{}](clients []*rpc.Client, f func(client *rpc.Client) (T, error)) (T, error) {
@@ -71,18 +74,22 @@ func initRpcClient(ctx context.Context, rpcUrl string, transport http.RoundTripp
 	return rpcClient, nil
 }
 
-func newRpcCollector(ctx context.Context, rpcUrls []string, transport http.RoundTripper) (*rpcCollector, error) {
+func newRpcCollector(ctx context.Context, rpcUrls []string, tzktUrls []string, transport http.RoundTripper) (*rpcCollector, error) {
 	result := &rpcCollector{
-		rpcs: make([]*rpc.Client, 0, len(rpcUrls)),
+		rpcs:     make([]*rpc.Client, 0, len(rpcUrls)),
+		tzktUrls: tzktUrls,
+		client: &http.Client{
+			Timeout: constants.HTTP_CLIENT_TIMEOUT_SECONDS * time.Second,
+		},
 	}
 
 	runInParallel(ctx, rpcUrls, constants.RPC_INIT_BATCH_SIZE, func(ctx context.Context, url string, mtx *sync.RWMutex) (cancel bool) {
+		mtx.Lock()
+		defer mtx.Unlock()
 		client, err := initRpcClient(ctx, url, transport)
 		if err != nil {
 			return
 		}
-		mtx.Lock()
-		defer mtx.Unlock()
 		result.rpcs = append(result.rpcs, client)
 		return
 	})
@@ -91,6 +98,8 @@ func newRpcCollector(ctx context.Context, rpcUrls []string, transport http.Round
 		return nil, errors.New("no rpc clients available")
 	}
 
+	result.tzktUrls = tzktUrls
+	result.client.Transport = transport
 	return result, nil
 }
 
@@ -286,6 +295,46 @@ func (engine *rpcCollector) fetchContractInitialBalanceInfo(ctx context.Context,
 	}, nil
 }
 
+func (engine *rpcCollector) getUnstakeRequestsCandidates(delegate tezos.Address) ([]tezos.Address, error) {
+	var result []tezos.Address
+	var err error
+
+	// try 3 times
+	for i := 0; i < 3; i++ {
+		for _, clientUrl := range engine.tzktUrls {
+			url := fmt.Sprintf("%sv1/staking/unstake_requests?baker=%s&firstLevel.le=6016401&select=staker.address&staker.ne=%s&staker.null=false&limit=10000", clientUrl, delegate.String(), delegate.String())
+			slog.Debug("fetching unstake requests candidates", "url", url)
+			response, err := engine.client.Get(url)
+			if err != nil {
+				continue
+			}
+
+			if response.StatusCode/100 != 2 {
+				continue
+			}
+			candidates := make([]string, 0, len(result))
+			defer response.Body.Close()
+			err = json.NewDecoder(response.Body).Decode(&candidates)
+
+			if err != nil {
+				continue
+			}
+			for _, address := range candidates {
+				addr, err := tezos.ParseAddress(address)
+				if err != nil {
+					continue
+				}
+				result = append(result, addr)
+			}
+			return result, nil
+		}
+		// sleep for some time
+		sleepTime := (rand.Intn(5)*(i+1) + 5)
+		time.Sleep(time.Duration(sleepTime) * time.Second)
+	}
+	return result, err
+}
+
 // we fetch the previous block to get the state at the beginning of the block we are going to process
 func (engine *rpcCollector) fetchInitialDelegationState(ctx context.Context, delegate *rpc.Delegate, cycle int64, blockWithMinimumId rpc.BlockID) (*common.DelegationState, error) {
 	lastBlockInCycle := engine.determineLastBlockOfCycle(cycle)
@@ -300,15 +349,17 @@ func (engine *rpcCollector) fetchInitialDelegationState(ctx context.Context, del
 	state.Parameters = params
 
 	// but we fill the rest from delegate state at the beginning of the block
-	newlyRegistered := false
 	delegateDelegatedContracts, err := engine.getDelegateDelegatedContracts(ctx, delegate.Delegate, blockBeforeMinimumId)
-	switch err {
-	case constants.ErrDelegateNotRegistered:
-		newlyRegistered = true
-	case nil:
-	default:
+	if err != nil {
 		return nil, err
 	}
+	// get potential unstake requests candidates
+	unstakeRequestsCandidates, err := engine.getUnstakeRequestsCandidates(delegate.Delegate)
+	if err != nil {
+		return nil, err
+	}
+	delegateDelegatedContracts = append(delegateDelegatedContracts, unstakeRequestsCandidates...)
+
 	// there may be new stakers at the end of the cycle so we have to check the end of the cycle as well
 	delegateDelegatedContractsAtTheEndOfCycle, err := engine.getDelegateDelegatedContracts(ctx, delegate.Delegate, lastBlockInCycle)
 	if err != nil {
@@ -377,22 +428,6 @@ func (engine *rpcCollector) fetchInitialDelegationState(ctx context.Context, del
 
 	if len(toCollect) > 0 {
 		return nil, constants.ErrFailedToFetchContractBalances
-	}
-
-	// there is no raw context for newly registered delegates so skip this part
-	if !newlyRegistered {
-		// fetch expected delegated balance and determine extra
-		expectedDelegated, err := engine.getDelegatedBalanceFromRawContext(ctx, delegate.Delegate, blockBeforeMinimumId)
-		if err != nil {
-			return nil, errors.Join(constants.ErrFailedToFetchContractDelegated, err)
-		}
-
-		if expectedDelegated.Int64() > state.GetDelegatedBalance() {
-			state.AddBalance(tezos.BurnAddress, common.DelegationStateBalanceInfo{
-				Balance: expectedDelegated.Int64() - state.GetDelegatedBalance(),
-				Baker:   delegate.Delegate,
-			})
-		}
 	}
 
 	return state, nil
