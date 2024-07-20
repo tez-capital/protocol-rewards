@@ -619,7 +619,6 @@ func (engine *rpcCollector) GetDelegationState(ctx context.Context, delegate *rp
 	}
 
 	found := false
-	fmt.Println("delegatedBalance", state.GetDelegatedBalance(), "allBalanceUpdates", len(allBalanceUpdates))
 	for _, balanceUpdate := range allBalanceUpdates {
 		if !state.HasContractBalanceInfo(balanceUpdate.Address) {
 			continue
