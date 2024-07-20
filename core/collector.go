@@ -350,7 +350,10 @@ func (engine *rpcCollector) fetchInitialDelegationState(ctx context.Context, del
 
 	// but we fill the rest from delegate state at the beginning of the block
 	delegateDelegatedContracts, err := engine.getDelegateDelegatedContracts(ctx, delegate.Delegate, blockBeforeMinimumId)
-	if err != nil {
+	switch err {
+	case constants.ErrDelegateNotRegistered: // ignore
+	case nil: // ignore
+	default:
 		return nil, err
 	}
 	// get potential unstake requests candidates
@@ -616,6 +619,7 @@ func (engine *rpcCollector) GetDelegationState(ctx context.Context, delegate *rp
 	}
 
 	found := false
+	fmt.Println("delegatedBalance", state.GetDelegatedBalance(), "allBalanceUpdates", len(allBalanceUpdates))
 	for _, balanceUpdate := range allBalanceUpdates {
 		if !state.HasContractBalanceInfo(balanceUpdate.Address) {
 			continue
