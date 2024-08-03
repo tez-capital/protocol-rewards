@@ -1,7 +1,6 @@
 services:
-  pg_delegation_rewards:
+  pg_protocol_rewards:
     image: postgres:alpine
-    container_name: pg_delegation_rewards
     restart: always
     environment:
       POSTGRES_USER: protocol_rewards
@@ -10,11 +9,10 @@ services:
     volumes:
       - ./db:/var/lib/postgresql/data
     networks:
-      - delegation-rewards-network
+      - protocol-rewards-network
 
   delegation_rewards:
-    image: ghcr.io/tez-capital/delegation-rewards:latest
-    container_name: delegation_rewards
+    image: ghcr.io/tez-capital/protocol-rewards:latest
     restart: always
     ports:
       - "127.0.0.1:8080:8080"
@@ -28,7 +26,7 @@ services:
       - pg_delegation_rewards
       - node
     networks:
-      - delegation-rewards-network
+      - protocol-rewards-network
     logging:
       driver: json-file
       options:
@@ -37,11 +35,10 @@ services:
 
   node:
     image: ghcr.io/tez-capital/xtz.node:latest
-    container_name: node
     volumes:
       - ./node:/ascend:rw
     networks:
-      - delegation-rewards-network
+      - protocol-rewards-network
     stop_grace_period: 5m00s
     logging:
       driver: json-file
@@ -50,5 +47,5 @@ services:
         max-file: '10' # Maximum number of files
 
 networks:
-  delegation-rewards-network:
+  protocol-rewards-network:
     driver: bridge
