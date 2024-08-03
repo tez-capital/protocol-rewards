@@ -15,7 +15,7 @@ func TestOverstake(t *testing.T) {
 
 	s := NewDelegationState(&rpc.Delegate{
 		Delegate: baker,
-	}, 745)
+	}, 745, rpc.BlockLevel(5799936))
 
 	s.Parameters = &StakingParameters{
 		LimitOfStakingOverBakingMillionth: 0,

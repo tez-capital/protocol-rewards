@@ -11,6 +11,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/tez-capital/ogun/constants"
 	"github.com/tez-capital/ogun/test"
+	"github.com/trilitech/tzgo/rpc"
 	"github.com/trilitech/tzgo/tezos"
 )
 
@@ -30,11 +31,11 @@ func TestGetActiveDelegates(t *testing.T) {
 	assert := assert.New(t)
 
 	cycle := 745
-
+	lastBlockInTheCycle := rpc.BlockLevel(5799936)
 	collector, err := newRpcCollector(defaultCtx, []string{"https://eu.rpc.tez.capital/", "https://rpc.tzkt.io/mainnet/"}, []string{"https://api.tzkt.io/"}, getTransport(fmt.Sprintf("../test/data/%d", cycle)))
 	assert.Nil(err)
 
-	delegates, err := collector.GetActiveDelegatesFromCycle(defaultCtx, 745)
+	delegates, err := collector.GetActiveDelegatesFromCycle(defaultCtx, lastBlockInTheCycle)
 	assert.Nil(err)
 	assert.Equal(354, len(delegates))
 }
@@ -45,20 +46,21 @@ func TestGetDelegationStateNoStaking(t *testing.T) {
 
 	// cycle 745
 	cycle := int64(745)
+	lastBlockInTheCycle := rpc.BlockLevel(5799936)
 	collector, err := newRpcCollector(defaultCtx, []string{"https://eu.rpc.tez.capital/", "https://rpc.tzkt.io/mainnet/"}, []string{"https://api.tzkt.io/"}, getTransport(fmt.Sprintf("../test/data/%d", cycle)))
 	assert.Nil(err)
 
-	delegates, err := collector.GetActiveDelegatesFromCycle(defaultCtx, cycle)
+	delegates, err := collector.GetActiveDelegatesFromCycle(defaultCtx, lastBlockInTheCycle)
 	assert.Nil(err)
 
 	err = runInParallel(defaultCtx, delegates, 100, func(ctx context.Context, addr tezos.Address, mtx *sync.RWMutex) bool {
-		delegate, err := collector.GetDelegateFromCycle(defaultCtx, cycle, addr)
+		delegate, err := collector.GetDelegateFromCycle(defaultCtx, lastBlockInTheCycle, addr)
 		if err != nil {
 			assert.Nil(err)
 			return true
 		}
 
-		_, err = collector.GetDelegationState(defaultCtx, delegate, cycle)
+		_, err = collector.GetDelegationState(defaultCtx, delegate, cycle, lastBlockInTheCycle)
 		if err != nil && err != constants.ErrDelegateHasNoMinimumDelegatedBalance {
 			assert.Nil(err)
 			return true
@@ -69,20 +71,21 @@ func TestGetDelegationStateNoStaking(t *testing.T) {
 
 	// cycle 746
 	cycle = int64(746)
+	lastBlockInTheCycle = rpc.BlockLevel(5824512)
 	collector, err = newRpcCollector(defaultCtx, []string{"https://eu.rpc.tez.capital/", "https://rpc.tzkt.io/mainnet/"}, []string{"https://api.tzkt.io/"}, getTransport(fmt.Sprintf("../test/data/%d", cycle)))
 	assert.Nil(err)
 
-	delegates, err = collector.GetActiveDelegatesFromCycle(defaultCtx, cycle)
+	delegates, err = collector.GetActiveDelegatesFromCycle(defaultCtx, lastBlockInTheCycle)
 	assert.Nil(err)
 
 	err = runInParallel(defaultCtx, delegates, 100, func(ctx context.Context, addr tezos.Address, mtx *sync.RWMutex) bool {
-		delegate, err := collector.GetDelegateFromCycle(defaultCtx, cycle, addr)
+		delegate, err := collector.GetDelegateFromCycle(defaultCtx, lastBlockInTheCycle, addr)
 		if err != nil {
 			assert.Nil(err)
 			return true
 		}
 
-		_, err = collector.GetDelegationState(defaultCtx, delegate, cycle)
+		_, err = collector.GetDelegationState(defaultCtx, delegate, cycle, lastBlockInTheCycle)
 		if err != nil && err != constants.ErrDelegateHasNoMinimumDelegatedBalance {
 			assert.Nil(err)
 			return true
@@ -98,20 +101,21 @@ func TestGetDelegationState(t *testing.T) {
 
 	// cycle 748
 	cycle := int64(748)
+	lastBlockInTheCycle := rpc.BlockLevel(5873664)
 	collector, err := newRpcCollector(defaultCtx, []string{"https://eu.rpc.tez.capital/", "https://rpc.tzkt.io/mainnet/"}, []string{"https://api.tzkt.io/"}, getTransport(fmt.Sprintf("../test/data/%d", cycle)))
 	assert.Nil(err)
 
-	delegates, err := collector.GetActiveDelegatesFromCycle(defaultCtx, cycle)
+	delegates, err := collector.GetActiveDelegatesFromCycle(defaultCtx, lastBlockInTheCycle)
 	assert.Nil(err)
 
 	err = runInParallel(defaultCtx, delegates, 100, func(ctx context.Context, addr tezos.Address, mtx *sync.RWMutex) bool {
-		delegate, err := collector.GetDelegateFromCycle(defaultCtx, cycle, addr)
+		delegate, err := collector.GetDelegateFromCycle(defaultCtx, lastBlockInTheCycle, addr)
 		if err != nil {
 			assert.Nil(err)
 			return true
 		}
 
-		_, err = collector.GetDelegationState(defaultCtx, delegate, cycle)
+		_, err = collector.GetDelegationState(defaultCtx, delegate, cycle, lastBlockInTheCycle)
 		if err != nil && err != constants.ErrDelegateHasNoMinimumDelegatedBalance {
 			assert.Nil(err)
 			return true
@@ -126,6 +130,7 @@ func TestCycle749RaceConditions(t *testing.T) {
 	debug.SetMaxThreads(1000000)
 
 	cycle := int64(749)
+	lastBlockInTheCycle := rpc.BlockLevel(5898240)
 	collector, err := newRpcCollector(defaultCtx, []string{"https://eu.rpc.tez.capital/", "https://rpc.tzkt.io/mainnet/"}, []string{"https://api.tzkt.io/"}, getTransport(fmt.Sprintf("../test/data/%d", cycle)))
 	assert.Nil(err)
 
@@ -140,13 +145,13 @@ func TestCycle749RaceConditions(t *testing.T) {
 	}
 
 	err = runInParallel(defaultCtx, delegates, 100, func(ctx context.Context, addr tezos.Address, mtx *sync.RWMutex) bool {
-		delegate, err := collector.GetDelegateFromCycle(defaultCtx, cycle, addr)
+		delegate, err := collector.GetDelegateFromCycle(defaultCtx, lastBlockInTheCycle, addr)
 		if err != nil {
 			assert.Nil(err)
 			return true
 		}
 
-		_, err = collector.GetDelegationState(defaultCtx, delegate, cycle)
+		_, err = collector.GetDelegationState(defaultCtx, delegate, cycle, lastBlockInTheCycle)
 		if err != nil && err != constants.ErrDelegateHasNoMinimumDelegatedBalance {
 			fmt.Println(delegate.Delegate.String())
 			assert.Nil(err)

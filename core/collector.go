@@ -192,20 +192,19 @@ func (engine *rpcCollector) GetCurrentProtocol() (tezos.ProtocolHash, error) {
 	return params.Protocol, nil
 }
 
-func (engine *rpcCollector) GetCurrentCycleNumber(ctx context.Context) (int64, error) {
+func (engine *rpcCollector) GetLastCompletedCycle(ctx context.Context) (cycle int64, lastBlockLevel int64, err error) {
 	head, err := attemptWithClients(engine.rpcs, func(client *rpc.Client) (*rpc.Block, error) {
 		return client.GetHeadBlock(ctx)
 	})
 	if err != nil {
-		return 0, err
+		return 0, 0, err
 	}
 
-	return head.GetLevelInfo().Cycle, err
-}
+	levelInfo := head.GetLevelInfo()
+	previousCycle := levelInfo.Cycle - 1
+	lastBlockInPreviousCycle := head.Header.Level - levelInfo.CyclePosition - 1
 
-func (engine *rpcCollector) GetLastCompletedCycle(ctx context.Context) (int64, error) {
-	cycle, err := engine.GetCurrentCycleNumber(ctx)
-	return cycle - 1, err
+	return previousCycle, lastBlockInPreviousCycle, err
 }
 
 func (engine *rpcCollector) GetCycleBakingPowerOrigin(ctx context.Context, cycle int64) (originCycle int64) {
@@ -218,27 +217,23 @@ func (engine *rpcCollector) GetCycleBakingPowerOrigin(ctx context.Context, cycle
 	return cycle - 1 - consensusDelay
 }
 
-func (engine *rpcCollector) determineLastBlockOfCycle(cycle int64) rpc.BlockID {
+func (engine *rpcCollector) determineLastBlockOfCycle(cycle int64) int64 {
 	height, _ := attemptWithClients(engine.rpcs, func(client *rpc.Client) (int64, error) {
 		return client.Params.CycleEndHeight(cycle), nil
 	})
 
-	return rpc.BlockLevel(height)
+	return height
 }
 
-func (engine *rpcCollector) GetActiveDelegatesFromCycle(ctx context.Context, cycle int64) (rpc.DelegateList, error) {
-	id := engine.determineLastBlockOfCycle(cycle)
-
+func (engine *rpcCollector) GetActiveDelegatesFromCycle(ctx context.Context, lastBlockInTheCycle rpc.BlockID) (rpc.DelegateList, error) {
 	return attemptWithClients(engine.rpcs, func(client *rpc.Client) (rpc.DelegateList, error) {
-		return client.ListActiveDelegates(ctx, id)
+		return client.ListActiveDelegates(ctx, lastBlockInTheCycle)
 	})
 }
 
-func (engine *rpcCollector) GetDelegateFromCycle(ctx context.Context, cycle int64, delegateAddress tezos.Address) (*rpc.Delegate, error) {
-	blockId := engine.determineLastBlockOfCycle(cycle)
-
+func (engine *rpcCollector) GetDelegateFromCycle(ctx context.Context, lastBlockInTheCycle rpc.BlockID, delegateAddress tezos.Address) (*rpc.Delegate, error) {
 	return attemptWithClients(engine.rpcs, func(client *rpc.Client) (*rpc.Delegate, error) {
-		return client.GetDelegate(ctx, delegateAddress, blockId)
+		return client.GetDelegate(ctx, delegateAddress, lastBlockInTheCycle)
 	})
 }
 
@@ -335,13 +330,12 @@ func (engine *rpcCollector) getUnstakeRequestsCandidates(delegate tezos.Address,
 }
 
 // we fetch the previous block to get the state at the beginning of the block we are going to process
-func (engine *rpcCollector) fetchInitialDelegationState(ctx context.Context, delegate *rpc.Delegate, cycle int64, blockWithMinimumId rpc.BlockID) (*common.DelegationState, error) {
-	lastBlockInCycle := engine.determineLastBlockOfCycle(cycle)
+func (engine *rpcCollector) fetchInitialDelegationState(ctx context.Context, delegate *rpc.Delegate, cycle int64, lastBlockInTheCycle rpc.BlockID, blockWithMinimumId rpc.BlockID) (*common.DelegationState, error) {
 	blockBeforeMinimumId := rpc.NewBlockOffset(blockWithMinimumId, -1)
-	state := common.NewDelegationState(delegate, cycle) // initialization has to be from delegate passed here
+	state := common.NewDelegationState(delegate, cycle, lastBlockInTheCycle) // initialization has to be from delegate passed here
 
 	// fetch staking parameters, staking parameters are taken from one block before the cycle ends
-	params, err := engine.getDelegateActiveStakingParameters(ctx, delegate.Delegate, lastBlockInCycle)
+	params, err := engine.getDelegateActiveStakingParameters(ctx, delegate.Delegate, lastBlockInTheCycle)
 	if err != nil {
 		return nil, err
 	}
@@ -363,7 +357,7 @@ func (engine *rpcCollector) fetchInitialDelegationState(ctx context.Context, del
 	delegateDelegatedContracts = append(delegateDelegatedContracts, unstakeRequestsCandidates...)
 
 	// there may be new stakers at the end of the cycle so we have to check the end of the cycle as well
-	delegateDelegatedContractsAtTheEndOfCycle, err := engine.getDelegateDelegatedContracts(ctx, delegate.Delegate, lastBlockInCycle)
+	delegateDelegatedContractsAtTheEndOfCycle, err := engine.getDelegateDelegatedContracts(ctx, delegate.Delegate, lastBlockInTheCycle)
 	if err != nil {
 		return nil, err
 	}
@@ -377,7 +371,7 @@ func (engine *rpcCollector) fetchInitialDelegationState(ctx context.Context, del
 	}
 
 	// staked balance is taken from the last block of the cycle
-	stakedBalance, err := engine.getContractStakedBalance(ctx, delegate.Delegate, lastBlockInCycle)
+	stakedBalance, err := engine.getContractStakedBalance(ctx, delegate.Delegate, lastBlockInTheCycle)
 	if err != nil {
 		return nil, errors.Join(constants.ErrFailedToFetchContract, err)
 	}
@@ -404,7 +398,7 @@ func (engine *rpcCollector) fetchInitialDelegationState(ctx context.Context, del
 		toCollect = make([]tezos.Address, 0)
 		// add the balance of the delegated contracts
 		runInParallel(ctx, toCollectNow, constants.CONTRACT_FETCH_BATCH_SIZE, func(ctx context.Context, address tezos.Address, mtx *sync.RWMutex) (cancel bool) {
-			balanceInfo, err := engine.fetchContractInitialBalanceInfo(ctx, address, delegate.Delegate, blockWithMinimumId, lastBlockInCycle)
+			balanceInfo, err := engine.fetchContractInitialBalanceInfo(ctx, address, delegate.Delegate, blockWithMinimumId, lastBlockInTheCycle)
 
 			if err != nil {
 				slog.Warn("failed to fetch contract balance info", "address", address.String(), "error", err)
@@ -435,8 +429,29 @@ func (engine *rpcCollector) fetchInitialDelegationState(ctx context.Context, del
 	return state, nil
 }
 
+func makeBurnBalanceUpdatesLast(updates []OgunBalanceUpdate) []OgunBalanceUpdate {
+	notBurns := make([]OgunBalanceUpdate, 0, len(updates))
+	burns := make([]OgunBalanceUpdate, 0, len(updates))
+
+	for i := 1; i < len(updates); i += 2 {
+		current := updates[i]
+		previous := updates[i-1]
+		if current.Kind == "burned" && current.Category == "storage fees" {
+			burns = append(burns, previous, current)
+		} else {
+			notBurns = append(notBurns, previous, current)
+		}
+	}
+
+	if len(notBurns)+len(burns) != len(updates) {
+		panic("invalid balance updates")
+	}
+
+	return append(notBurns, burns...)
+}
+
 func (engine *rpcCollector) getBlockBalanceUpdates(ctx context.Context, state *common.DelegationState, blockLevelWithMinimumBalance rpc.BlockLevel) (OgunBalanceUpdates, error) {
-	lastBlockInCycle := engine.determineLastBlockOfCycle(state.Cycle)
+	lastBlockInCycle := state.LastBlockLevel
 
 	blockWithMinimumBalance, err := attemptWithClients(engine.rpcs, func(client *rpc.Client) (*rpc.Block, error) {
 		return client.GetBlock(ctx, blockLevelWithMinimumBalance)
@@ -462,6 +477,7 @@ func (engine *rpcCollector) getBlockBalanceUpdates(ctx context.Context, state *c
 					}
 				})...)
 			}
+
 			// then transfers
 			for transactionIndex, content := range operation.Contents {
 				if content.Kind() == tezos.OpTypeDelegation {
@@ -490,7 +506,7 @@ func (engine *rpcCollector) getBlockBalanceUpdates(ctx context.Context, state *c
 					continue
 				}
 
-				allBalanceUpdates = allBalanceUpdates.Add(lo.Map(content.Result().BalanceUpdates, func(bu rpc.BalanceUpdate, _ int) OgunBalanceUpdate {
+				allBalanceUpdates = allBalanceUpdates.Add(makeBurnBalanceUpdatesLast(lo.Map(content.Result().BalanceUpdates, func(bu rpc.BalanceUpdate, _ int) OgunBalanceUpdate {
 					return OgunBalanceUpdate{
 						Address:   bu.Address(),
 						Amount:    bu.Amount(),
@@ -500,7 +516,7 @@ func (engine *rpcCollector) getBlockBalanceUpdates(ctx context.Context, state *c
 						Kind:      bu.Kind,
 						Category:  bu.Category,
 					}
-				})...)
+				}))...)
 
 				for internalResultIndex, internalResult := range content.Meta().InternalResults {
 					if internalResult.Kind == tezos.OpTypeDelegation {
@@ -527,7 +543,7 @@ func (engine *rpcCollector) getBlockBalanceUpdates(ctx context.Context, state *c
 						// no other updates nor internal results for delegation
 						continue
 					}
-					allBalanceUpdates = allBalanceUpdates.Add(lo.Map(internalResult.Result.BalanceUpdates, func(bu rpc.BalanceUpdate, _ int) OgunBalanceUpdate {
+					allBalanceUpdates = allBalanceUpdates.Add(makeBurnBalanceUpdatesLast(lo.Map(internalResult.Result.BalanceUpdates, func(bu rpc.BalanceUpdate, _ int) OgunBalanceUpdate {
 						return OgunBalanceUpdate{
 							Address:       bu.Address(),
 							Amount:        bu.Amount(),
@@ -538,7 +554,7 @@ func (engine *rpcCollector) getBlockBalanceUpdates(ctx context.Context, state *c
 							Kind:          bu.Kind,
 							Category:      bu.Category,
 						}
-					})...)
+					}))...)
 				}
 			}
 
@@ -583,14 +599,13 @@ func (engine *rpcCollector) getBlockBalanceUpdates(ctx context.Context, state *c
 	return allBalanceUpdates, nil
 }
 
-func (engine *rpcCollector) GetDelegationState(ctx context.Context, delegate *rpc.Delegate, cycle int64) (*common.DelegationState, error) {
+func (engine *rpcCollector) GetDelegationState(ctx context.Context, delegate *rpc.Delegate, cycle int64, lastBlockInTheCycle rpc.BlockID) (*common.DelegationState, error) {
 	blockLevelWithMinimumBalance := rpc.BlockLevel(delegate.MinDelegated.Level.Level)
 	targetAmount := delegate.MinDelegated.Amount
 
 	if blockLevelWithMinimumBalance == 0 {
-		lastBlockInCycle := engine.determineLastBlockOfCycle(cycle)
-		slog.Debug("fetching delegation state - no minimum, taking last block balances", "blockLevelWithMinimumBalance", lastBlockInCycle, "delegate", delegate.Delegate.String())
-		state, err := engine.fetchInitialDelegationState(ctx, delegate, cycle, lastBlockInCycle)
+		slog.Debug("fetching delegation state - no minimum, taking last block balances", "blockLevelWithMinimumBalance", lastBlockInTheCycle, "delegate", delegate.Delegate.String())
+		state, err := engine.fetchInitialDelegationState(ctx, delegate, cycle, lastBlockInTheCycle, lastBlockInTheCycle)
 		if err != nil {
 			return nil, err
 		}
@@ -598,7 +613,7 @@ func (engine *rpcCollector) GetDelegationState(ctx context.Context, delegate *rp
 	}
 
 	slog.Debug("fetching delegation state", "blockLevelWithMinimumBalance", blockLevelWithMinimumBalance, "delegate", delegate.Delegate.String())
-	state, err := engine.fetchInitialDelegationState(ctx, delegate, cycle, blockLevelWithMinimumBalance)
+	state, err := engine.fetchInitialDelegationState(ctx, delegate, cycle, lastBlockInTheCycle, blockLevelWithMinimumBalance)
 	if err != nil {
 		return nil, err
 	}

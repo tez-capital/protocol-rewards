@@ -19,7 +19,7 @@ func registerFetchCycle(app *fiber.App, engine *core.Engine) {
 			})
 		}
 
-		go engine.FetchCycleDelegationStates(c.Context(), cycle, &core.FetchOptions{
+		go engine.FetchCycleDelegationStates(c.Context(), cycle, 0, &core.FetchOptions{
 			Force: c.Query("force") == "true",
 		})
 		return c.JSON(fiber.Map{
@@ -44,7 +44,7 @@ func registerFetchDelegate(app *fiber.App, engine *core.Engine) {
 			})
 		}
 
-		go engine.FetchDelegateDelegationState(c.Context(), address, cycle, &core.FetchOptions{
+		go engine.FetchDelegateDelegationState(c.Context(), address, cycle, 0, &core.FetchOptions{
 			Force: c.Query("force") == "true",
 		})
 		return c.JSON(fiber.Map{

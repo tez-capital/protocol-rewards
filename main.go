@@ -48,7 +48,7 @@ func run_test(ctx context.Context, testFlag string, config *configuration.Runtim
 			return
 		}
 
-		engine.FetchDelegateDelegationState(ctx, tezos.MustParseAddress(address), cycle, &core.DebugFetchOptions)
+		engine.FetchDelegateDelegationState(ctx, tezos.MustParseAddress(address), cycle, 0, &core.DebugFetchOptions)
 		return
 	}
 
@@ -59,7 +59,7 @@ func run_test(ctx context.Context, testFlag string, config *configuration.Runtim
 		return
 	}
 
-	engine.FetchCycleDelegationStates(ctx, cycle, &core.ForceFetchOptions)
+	engine.FetchCycleDelegationStates(ctx, cycle, 0, &core.ForceFetchOptions)
 }
 
 func main() {

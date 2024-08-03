@@ -118,9 +118,10 @@ type DelegationStateCreationInfo struct {
 }
 
 type DelegationState struct {
-	Baker      tezos.Address      `json:"baker"`
-	Cycle      int64              `json:"cycle"`
-	Parameters *StakingParameters `json:"staking_parameters"`
+	Baker          tezos.Address      `json:"baker"`
+	Cycle          int64              `json:"cycle"`
+	LastBlockLevel rpc.BlockID        `json:"last_block_level"`
+	Parameters     *StakingParameters `json:"staking_parameters"`
 
 	CreatedAt DelegationStateCreationInfo `json:"created_at"`
 
@@ -128,12 +129,13 @@ type DelegationState struct {
 	balancesMtx sync.RWMutex
 }
 
-func NewDelegationState(delegate *rpc.Delegate, cycle int64) *DelegationState {
+func NewDelegationState(delegate *rpc.Delegate, cycle int64, lastBlockLevel rpc.BlockID) *DelegationState {
 	return &DelegationState{
-		Baker:       delegate.Delegate,
-		Cycle:       cycle,
-		balances:    make(DelegationStateBalances),
-		balancesMtx: sync.RWMutex{},
+		Baker:          delegate.Delegate,
+		Cycle:          cycle,
+		LastBlockLevel: lastBlockLevel,
+		balances:       make(DelegationStateBalances),
+		balancesMtx:    sync.RWMutex{},
 	}
 }
 
