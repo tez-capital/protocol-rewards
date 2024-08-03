@@ -1,0 +1,22 @@
+{
+    providers: [
+         https://rpc.betanet-2024-07-24.teztnets.com
+    ]
+    tzkt_providers: [
+         https://api.betanet.tzkt.io/
+    ]
+    storage: {
+        mode: rolling
+        stored_cycles: 20
+    }
+    database: {
+        host: pg_delegation_rewards
+        port: 5432
+        user: protocol_rewards
+        password: protocol_rewards
+        database: protocol_rewards
+    }
+    discord_notificator: {
+        webhook_url: <webhook url>
+    }
+}
