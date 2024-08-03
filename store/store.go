@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"log/slog"
 
-	"github.com/tez-capital/ogun/configuration"
-	"github.com/tez-capital/ogun/constants"
+	"github.com/tez-capital/protocol-rewards/configuration"
+	"github.com/tez-capital/protocol-rewards/constants"
 	"github.com/trilitech/tzgo/tezos"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"

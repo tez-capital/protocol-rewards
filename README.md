@@ -1,4 +1,4 @@
-# ogun
+# Protocol Rewards
 
 config.hjson
 ```hjson
@@ -13,9 +13,9 @@ config.hjson
    database: {
       host: 127.0.0.1
       port: 5432
-      user: ogun
-      password: ogun
-      database: ogun
+      user: protocol_rewards
+      password: protocol_rewards
+      database: protocol_rewards
    }
    storage: {
       mode: rolling

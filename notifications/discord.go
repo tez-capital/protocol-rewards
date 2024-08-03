@@ -6,7 +6,7 @@ import (
 	"regexp"
 
 	"github.com/bwmarrin/discordgo"
-	"github.com/tez-capital/ogun/constants"
+	"github.com/tez-capital/protocol-rewards/constants"
 )
 
 type DiscordNotificatorConfiguration struct {

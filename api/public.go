@@ -8,10 +8,10 @@ import (
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/limiter"
-	"github.com/tez-capital/ogun/configuration"
-	"github.com/tez-capital/ogun/constants"
-	"github.com/tez-capital/ogun/core"
-	"github.com/tez-capital/ogun/store"
+	"github.com/tez-capital/protocol-rewards/configuration"
+	"github.com/tez-capital/protocol-rewards/constants"
+	"github.com/tez-capital/protocol-rewards/core"
+	"github.com/tez-capital/protocol-rewards/store"
 	"github.com/trilitech/tzgo/tezos"
 )
 

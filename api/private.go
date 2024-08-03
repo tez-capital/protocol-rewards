@@ -5,8 +5,8 @@ import (
 	"strconv"
 
 	"github.com/gofiber/fiber/v2"
-	"github.com/tez-capital/ogun/configuration"
-	"github.com/tez-capital/ogun/core"
+	"github.com/tez-capital/protocol-rewards/configuration"
+	"github.com/tez-capital/protocol-rewards/core"
 	"github.com/trilitech/tzgo/tezos"
 )
 

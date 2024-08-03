@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 
-	"github.com/tez-capital/ogun/common"
+	"github.com/tez-capital/protocol-rewards/common"
 	"github.com/trilitech/tzgo/tezos"
 )
 

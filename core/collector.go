@@ -13,8 +13,8 @@ import (
 	"time"
 
 	"github.com/samber/lo"
-	"github.com/tez-capital/ogun/common"
-	"github.com/tez-capital/ogun/constants"
+	"github.com/tez-capital/protocol-rewards/common"
+	"github.com/tez-capital/protocol-rewards/constants"
 	"github.com/trilitech/tzgo/rpc"
 	"github.com/trilitech/tzgo/tezos"
 )
@@ -429,9 +429,9 @@ func (engine *rpcCollector) fetchInitialDelegationState(ctx context.Context, del
 	return state, nil
 }
 
-func makeBurnBalanceUpdatesLast(updates []OgunBalanceUpdate) []OgunBalanceUpdate {
-	notBurns := make([]OgunBalanceUpdate, 0, len(updates))
-	burns := make([]OgunBalanceUpdate, 0, len(updates))
+func makeBurnBalanceUpdatesLast(updates []PRBalanceUpdate) []PRBalanceUpdate {
+	notBurns := make([]PRBalanceUpdate, 0, len(updates))
+	burns := make([]PRBalanceUpdate, 0, len(updates))
 
 	for i := 1; i < len(updates); i += 2 {
 		current := updates[i]
@@ -450,7 +450,7 @@ func makeBurnBalanceUpdatesLast(updates []OgunBalanceUpdate) []OgunBalanceUpdate
 	return append(notBurns, burns...)
 }
 
-func (engine *rpcCollector) getBlockBalanceUpdates(ctx context.Context, state *common.DelegationState, blockLevelWithMinimumBalance rpc.BlockLevel) (OgunBalanceUpdates, error) {
+func (engine *rpcCollector) getBlockBalanceUpdates(ctx context.Context, state *common.DelegationState, blockLevelWithMinimumBalance rpc.BlockLevel) (PRBalanceUpdates, error) {
 	lastBlockInCycle := state.LastBlockLevel
 
 	blockWithMinimumBalance, err := attemptWithClients(engine.rpcs, func(client *rpc.Client) (*rpc.Block, error) {
@@ -460,13 +460,13 @@ func (engine *rpcCollector) getBlockBalanceUpdates(ctx context.Context, state *c
 		return nil, err
 	}
 
-	allBalanceUpdates := make(OgunBalanceUpdates, 0, len(blockWithMinimumBalance.Operations)*2 /* thats minimum of balance updates we expect*/)
+	allBalanceUpdates := make(PRBalanceUpdates, 0, len(blockWithMinimumBalance.Operations)*2 /* thats minimum of balance updates we expect*/)
 	for _, batch := range blockWithMinimumBalance.Operations {
 		for _, operation := range batch {
 			// first op fees
 			for transactionIndex, content := range operation.Contents {
-				allBalanceUpdates = allBalanceUpdates.Add(lo.Map(content.Meta().BalanceUpdates, func(bu rpc.BalanceUpdate, _ int) OgunBalanceUpdate {
-					return OgunBalanceUpdate{
+				allBalanceUpdates = allBalanceUpdates.Add(lo.Map(content.Meta().BalanceUpdates, func(bu rpc.BalanceUpdate, _ int) PRBalanceUpdate {
+					return PRBalanceUpdate{
 						Address:   bu.Address(),
 						Amount:    bu.Amount(),
 						Operation: operation.Hash,
@@ -495,7 +495,7 @@ func (engine *rpcCollector) getBlockBalanceUpdates(ctx context.Context, state *c
 						state.AddBalance(content.Source, *balanceInfo)
 					}
 
-					allBalanceUpdates = allBalanceUpdates.Add(OgunBalanceUpdate{
+					allBalanceUpdates = allBalanceUpdates.Add(PRBalanceUpdate{
 						Address:   content.Source,
 						Operation: operation.Hash,
 						Index:     transactionIndex,
@@ -506,8 +506,8 @@ func (engine *rpcCollector) getBlockBalanceUpdates(ctx context.Context, state *c
 					continue
 				}
 
-				allBalanceUpdates = allBalanceUpdates.Add(makeBurnBalanceUpdatesLast(lo.Map(content.Result().BalanceUpdates, func(bu rpc.BalanceUpdate, _ int) OgunBalanceUpdate {
-					return OgunBalanceUpdate{
+				allBalanceUpdates = allBalanceUpdates.Add(makeBurnBalanceUpdatesLast(lo.Map(content.Result().BalanceUpdates, func(bu rpc.BalanceUpdate, _ int) PRBalanceUpdate {
+					return PRBalanceUpdate{
 						Address:   bu.Address(),
 						Amount:    bu.Amount(),
 						Operation: operation.Hash,
@@ -533,7 +533,7 @@ func (engine *rpcCollector) getBlockBalanceUpdates(ctx context.Context, state *c
 							delegate = *internalResult.Delegate
 						}
 
-						allBalanceUpdates = allBalanceUpdates.Add(OgunBalanceUpdate{
+						allBalanceUpdates = allBalanceUpdates.Add(PRBalanceUpdate{
 							Address:   internalResult.Source,
 							Operation: operation.Hash,
 							Index:     transactionIndex,
@@ -543,8 +543,8 @@ func (engine *rpcCollector) getBlockBalanceUpdates(ctx context.Context, state *c
 						// no other updates nor internal results for delegation
 						continue
 					}
-					allBalanceUpdates = allBalanceUpdates.Add(makeBurnBalanceUpdatesLast(lo.Map(internalResult.Result.BalanceUpdates, func(bu rpc.BalanceUpdate, _ int) OgunBalanceUpdate {
-						return OgunBalanceUpdate{
+					allBalanceUpdates = allBalanceUpdates.Add(makeBurnBalanceUpdatesLast(lo.Map(internalResult.Result.BalanceUpdates, func(bu rpc.BalanceUpdate, _ int) PRBalanceUpdate {
+						return PRBalanceUpdate{
 							Address:       bu.Address(),
 							Amount:        bu.Amount(),
 							Operation:     operation.Hash,
@@ -561,8 +561,8 @@ func (engine *rpcCollector) getBlockBalanceUpdates(ctx context.Context, state *c
 		}
 	}
 
-	blockBalanceUpdates := lo.Map(blockWithMinimumBalance.Metadata.BalanceUpdates, func(bu rpc.BalanceUpdate, _ int) OgunBalanceUpdate {
-		return OgunBalanceUpdate{
+	blockBalanceUpdates := lo.Map(blockWithMinimumBalance.Metadata.BalanceUpdates, func(bu rpc.BalanceUpdate, _ int) PRBalanceUpdate {
+		return PRBalanceUpdate{
 			Address:  bu.Address(),
 			Amount:   bu.Amount(),
 			Source:   common.CreatedAtBlockMetadata,
@@ -572,8 +572,8 @@ func (engine *rpcCollector) getBlockBalanceUpdates(ctx context.Context, state *c
 	})
 
 	// for some reason updates caused by unstake deposits -> deposits are not considered ¯\_(ツ)_/¯
-	preprocessedBlockBalanceUpdates := make([]OgunBalanceUpdate, 0, len(blockBalanceUpdates))
-	cache := make([]OgunBalanceUpdate, 0)
+	preprocessedBlockBalanceUpdates := make([]PRBalanceUpdate, 0, len(blockBalanceUpdates))
+	cache := make([]PRBalanceUpdate, 0)
 	skip := false
 	for i, update := range blockBalanceUpdates {
 		if skip {
@@ -619,7 +619,7 @@ func (engine *rpcCollector) GetDelegationState(ctx context.Context, delegate *rp
 	}
 
 	// we may match at the beginning of the block, we do not have to further process
-	if abs(state.GetDelegatedBalance()-targetAmount) <= constants.OGUN_MINIMUM_DIFF_TOLERANCE {
+	if abs(state.GetDelegatedBalance()-targetAmount) <= constants.MINIMUM_DIFF_TOLERANCE {
 		state.CreatedAt = common.DelegationStateCreationInfo{
 			Level: blockLevelWithMinimumBalance.Int64(),
 			Kind:  common.CreatedAtBlockBeginning,
@@ -661,7 +661,7 @@ func (engine *rpcCollector) GetDelegationState(ctx context.Context, delegate *rp
 
 		slog.Debug("balance update", "delegate", balanceUpdate.Delegate, "address", balanceUpdate.Address.String(), "delegated_balance", state.GetDelegatedBalance(), "amount", balanceUpdate.Amount, "target_amount", targetAmount, "diff", state.GetDelegatedBalance()-targetAmount)
 
-		if abs(state.GetDelegatedBalance()-targetAmount) <= constants.OGUN_MINIMUM_DIFF_TOLERANCE {
+		if abs(state.GetDelegatedBalance()-targetAmount) <= constants.MINIMUM_DIFF_TOLERANCE {
 			found = true
 			state.CreatedAt = common.DelegationStateCreationInfo{
 				Level:         blockLevelWithMinimumBalance.Int64(),

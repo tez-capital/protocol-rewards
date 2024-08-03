@@ -1,4 +1,4 @@
-module github.com/tez-capital/ogun
+module github.com/tez-capital/protocol-rewards
 
 go 1.22.4
 

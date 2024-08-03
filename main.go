@@ -12,11 +12,11 @@ import (
 	"strings"
 	"syscall"
 
-	"github.com/tez-capital/ogun/api"
-	"github.com/tez-capital/ogun/configuration"
-	"github.com/tez-capital/ogun/constants"
-	"github.com/tez-capital/ogun/core"
-	"github.com/tez-capital/ogun/test"
+	"github.com/tez-capital/protocol-rewards/api"
+	"github.com/tez-capital/protocol-rewards/configuration"
+	"github.com/tez-capital/protocol-rewards/constants"
+	"github.com/tez-capital/protocol-rewards/core"
+	"github.com/tez-capital/protocol-rewards/test"
 	"github.com/trilitech/tzgo/tezos"
 )
 

@@ -4,9 +4,9 @@ services:
     container_name: pg_delegation_rewards
     restart: always
     environment:
-      POSTGRES_USER: ogun
-      POSTGRES_PASSWORD: ogun
-      POSTGRES_DB: ogun
+      POSTGRES_USER: protocol_rewards
+      POSTGRES_PASSWORD: protocol_rewards
+      POSTGRES_DB: protocol_rewards
     volumes:
       - ./db:/var/lib/postgresql/data
     networks:

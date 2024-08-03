@@ -8,12 +8,13 @@ import (
 	"net/http"
 	"slices"
 	"sync"
+	"time"
 
 	"github.com/samber/lo"
-	"github.com/tez-capital/ogun/configuration"
-	"github.com/tez-capital/ogun/constants"
-	"github.com/tez-capital/ogun/notifications"
-	"github.com/tez-capital/ogun/store"
+	"github.com/tez-capital/protocol-rewards/configuration"
+	"github.com/tez-capital/protocol-rewards/constants"
+	"github.com/tez-capital/protocol-rewards/notifications"
+	"github.com/tez-capital/protocol-rewards/store"
 	"github.com/trilitech/tzgo/rpc"
 	"github.com/trilitech/tzgo/tezos"
 )
@@ -193,7 +194,7 @@ func (e *Engine) FetchCycleDelegationStates(ctx context.Context, cycle, lastBloc
 		return err
 	}
 
-	err = runInParallel(ctx, delegates, constants.OGUN_DELEGATE_FETCH_BATCH_SIZE, func(ctx context.Context, item tezos.Address, mtx *sync.RWMutex) bool {
+	err = runInParallel(ctx, delegates, constants.DELEGATE_FETCH_BATCH_SIZE, func(ctx context.Context, item tezos.Address, mtx *sync.RWMutex) bool {
 		err := e.fetchDelegateDelegationStateInternal(ctx, item, cycle, lastBlockInTheCycle, options)
 		if err != nil {
 			e.logger.Error("failed to fetch delegate delegation state", "cycle", cycle, "delegate", item.String(), "error", err.Error())
@@ -235,7 +236,7 @@ func (e *Engine) fetchAutomatically() {
 			case <-e.ctx.Done():
 				return
 			default:
-				//time.Sleep(constants.OGUN_CYCLE_FETCH_FREQUENCY_MINUTES * time.Minute)
+				time.Sleep(constants.CYCLE_FETCH_FREQUENCY_MINUTES * time.Minute)
 
 				lastOnChainCompletedCycle, lastBlockInTheCycle, err := e.collector.GetLastCompletedCycle(e.ctx)
 				if err != nil {

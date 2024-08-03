@@ -1,7 +1,7 @@
 package core
 
 import (
-	"github.com/tez-capital/ogun/common"
+	"github.com/tez-capital/protocol-rewards/common"
 	"github.com/trilitech/tzgo/tezos"
 )
 
@@ -11,7 +11,7 @@ var (
 	ForceFetchOptions   = FetchOptions{Force: true}
 )
 
-type OgunBalanceUpdate struct {
+type PRBalanceUpdate struct {
 	// rpc.BalanceUpdate
 	Address tezos.Address `json:"address"`
 	Amount  int64         `json:"amount,string"`
@@ -27,13 +27,13 @@ type OgunBalanceUpdate struct {
 	Delegate tezos.Address `json:"delegate"`
 }
 
-type OgunBalanceUpdates []OgunBalanceUpdate
+type PRBalanceUpdates []PRBalanceUpdate
 
-func (e OgunBalanceUpdates) Len() int {
+func (e PRBalanceUpdates) Len() int {
 	return len(e)
 }
 
-func (e OgunBalanceUpdates) Add(updates ...OgunBalanceUpdate) OgunBalanceUpdates {
+func (e PRBalanceUpdates) Add(updates ...PRBalanceUpdate) PRBalanceUpdates {
 	return append(e, updates...)
 }
 

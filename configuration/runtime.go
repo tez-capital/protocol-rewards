@@ -6,8 +6,8 @@ import (
 
 	"github.com/hjson/hjson-go/v4"
 	"github.com/joho/godotenv"
-	"github.com/tez-capital/ogun/constants"
-	"github.com/tez-capital/ogun/notifications"
+	"github.com/tez-capital/protocol-rewards/constants"
+	"github.com/tez-capital/protocol-rewards/notifications"
 	"github.com/trilitech/tzgo/tezos"
 )
 

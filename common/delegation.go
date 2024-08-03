@@ -4,7 +4,7 @@ import (
 	"sync"
 
 	"github.com/samber/lo"
-	"github.com/tez-capital/ogun/constants"
+	"github.com/tez-capital/protocol-rewards/constants"
 	"github.com/trilitech/tzgo/rpc"
 	"github.com/trilitech/tzgo/tezos"
 )

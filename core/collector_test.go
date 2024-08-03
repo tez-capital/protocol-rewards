@@ -9,8 +9,8 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/tez-capital/ogun/constants"
-	"github.com/tez-capital/ogun/test"
+	"github.com/tez-capital/protocol-rewards/constants"
+	"github.com/tez-capital/protocol-rewards/test"
 	"github.com/trilitech/tzgo/rpc"
 	"github.com/trilitech/tzgo/tezos"
 )
