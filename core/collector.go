@@ -113,18 +113,6 @@ func (engine *rpcCollector) getContractStakedBalance(ctx context.Context, addr t
 	})
 }
 
-func (engine *rpcCollector) getDelegatedBalanceFromRawContext(ctx context.Context, delegate tezos.Address, id rpc.BlockID) (tezos.Z, error) {
-	u := fmt.Sprintf("chains/main/blocks/%s/context/raw/json/staking_balance/%s", id, delegate)
-
-	return attemptWithClients(engine.rpcs, func(client *rpc.Client) (tezos.Z, error) {
-		var bal struct {
-			Delegated tezos.Z `json:"delegated"`
-		}
-		err := client.Get(ctx, u, &bal)
-		return bal.Delegated, err
-	})
-}
-
 func (engine *rpcCollector) getContractUnstakeRequests(ctx context.Context, addr tezos.Address, id rpc.BlockID) (common.UnstakeRequests, error) {
 	// chains/main/blocks/5896790/context/contracts/tz1epK8fDnc8tUeK6dNwTjiHqrGzX586ozyt/unstake_requests
 	u := fmt.Sprintf("chains/main/blocks/%s/context/contracts/%s/unstake_requests", id, addr)
