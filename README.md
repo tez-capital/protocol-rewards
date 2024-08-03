@@ -51,3 +51,7 @@ testing command flags
 ```
 go run main.go -log debug -test tz1gXWW1q8NcXtVy2oVVcc2s4XKNzv9CryWd:745
 ```
+
+### Credits
+
+`protocol-rewards` is **Powered by [TzKT API](https://api.tzkt.io/)** - used to fetch unstake requests.
