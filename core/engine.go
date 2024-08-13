@@ -189,7 +189,7 @@ func (e *Engine) FetchCycleDelegationStates(ctx context.Context, cycle, lastBloc
 		lastBlockInTheCycle = e.collector.determineLastBlockOfCycle(cycle)
 	}
 
-	delegates, err := e.getDelegates(ctx, cycle)
+	delegates, err := e.getDelegates(ctx, lastBlockInTheCycle)
 	if err != nil {
 		return err
 	}
