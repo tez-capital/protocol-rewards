@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log/slog"
 
+	"github.com/tez-capital/protocol-rewards/common"
 	"github.com/tez-capital/protocol-rewards/configuration"
 	"github.com/tez-capital/protocol-rewards/constants"
 	"github.com/trilitech/tzgo/tezos"
@@ -85,6 +86,35 @@ func (s *Store) IsDelegationStateAvailable(delegate tezos.Address, cycle int64) 
 	var count int64
 	s.db.Model(&StoredDelegationState{}).Where("delegate = ? AND cycle = ?", delegate, cycle).Count(&count)
 	return count > 0, nil
+}
+
+func (s *Store) Statistics(cycle int64) (*common.CycleStatistics, error) {
+	var states []StoredDelegationState
+	if err := s.db.Model(&StoredDelegationState{}).Where("cycle = ?", cycle).Find(&states).Error; err != nil {
+		return nil, err
+	}
+
+	result := &common.CycleStatistics{
+		Cycle:     cycle,
+		Delegates: make(map[tezos.Address]common.DelegateCycleStatistics),
+	}
+
+	for _, state := range states {
+		staked := int64(0)
+		delegated := int64(0)
+
+		for _, balances := range state.Balances {
+			staked += balances.StakedBalance
+			delegated += balances.DelegatedBalance
+		}
+
+		result.Delegates[state.Delegate.Address] = common.DelegateCycleStatistics{
+			Staked:    staked,
+			Delegated: delegated,
+		}
+	}
+
+	return result, nil
 }
 
 func (s *Store) GetLastFetchedCycle() (int64, error) {

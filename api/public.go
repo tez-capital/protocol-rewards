@@ -74,6 +74,26 @@ func registerIsDelegationStateAvailable(app *fiber.App, engine *core.Engine) {
 	})
 }
 
+func registerStatistics(app *fiber.App, engine *core.Engine) {
+	app.Get("/statistics/:cycle", func(c *fiber.Ctx) error {
+		cycle, err := strconv.ParseInt(c.Params("cycle"), 10, 64)
+		if err != nil {
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+				"error": err.Error(),
+			})
+		}
+
+		available, err := engine.Statisticts(c.Context(), cycle)
+		if err != nil {
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+				"error": err.Error(),
+			})
+		}
+
+		return c.JSON(available)
+	})
+}
+
 func registerRewardsSplitMirror(app *fiber.App, engine *core.Engine) {
 	app.Get("/v1/rewards/split/:address/:cycle", func(c *fiber.Ctx) error {
 		cycle, err := strconv.ParseInt(c.Params("cycle"), 10, 64)
@@ -124,6 +144,7 @@ func CreatePublicApi(config *configuration.Runtime, engine *core.Engine) *fiber.
 	registerGetDelegationState(app, engine)
 	registerIsDelegationStateAvailable(app, engine)
 	registerRewardsSplitMirror(app, engine)
+	registerStatistics(app, engine)
 
 	go func() {
 		err := app.Listen(config.Listen)

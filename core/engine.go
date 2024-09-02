@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/samber/lo"
+	"github.com/tez-capital/protocol-rewards/common"
 	"github.com/tez-capital/protocol-rewards/configuration"
 	"github.com/tez-capital/protocol-rewards/constants"
 	"github.com/tez-capital/protocol-rewards/notifications"
@@ -227,6 +228,10 @@ func (e *Engine) GetDelegationState(ctx context.Context, delegate tezos.Address,
 func (e *Engine) IsDelegationStateAvailable(ctx context.Context, delegate tezos.Address, cycle int64) (bool, error) {
 	cycle = e.collector.GetCycleBakingPowerOrigin(ctx, cycle)
 	return e.store.IsDelegationStateAvailable(delegate, cycle)
+}
+
+func (e *Engine) Statisticts(ctx context.Context, cycle int64) (*common.CycleStatistics, error) {
+	return e.store.Statistics(cycle)
 }
 
 func (e *Engine) fetchAutomatically() {
