@@ -417,25 +417,28 @@ func (engine *rpcCollector) fetchInitialDelegationState(ctx context.Context, del
 	return state, nil
 }
 
-func makeBurnBalanceUpdatesLast(updates []PRBalanceUpdate) []PRBalanceUpdate {
-	notBurns := make([]PRBalanceUpdate, 0, len(updates))
-	burns := make([]PRBalanceUpdate, 0, len(updates))
+func makeBurnAndStakeBalanceUpdatesLast(updates []PRBalanceUpdate) []PRBalanceUpdate {
+	regular := make([]PRBalanceUpdate, 0, len(updates))
+	toBeLast := make([]PRBalanceUpdate, 0, len(updates))
 
 	for i := 1; i < len(updates); i += 2 {
 		current := updates[i]
 		previous := updates[i-1]
-		if current.Kind == "burned" && current.Category == "storage fees" {
-			burns = append(burns, previous, current)
-		} else {
-			notBurns = append(notBurns, previous, current)
+		switch {
+		case current.Kind == "freezer" && current.Category == "deposits":
+			fallthrough
+		case current.Kind == "burned" && current.Category == "storage fees":
+			toBeLast = append(toBeLast, previous, current)
+		default:
+			regular = append(regular, previous, current)
 		}
 	}
 
-	if len(notBurns)+len(burns) != len(updates) {
+	if len(regular)+len(toBeLast) != len(updates) {
 		panic("invalid balance updates")
 	}
 
-	return append(notBurns, burns...)
+	return append(regular, toBeLast...)
 }
 
 func (engine *rpcCollector) getBlockBalanceUpdates(ctx context.Context, state *common.DelegationState, blockLevelWithMinimumBalance rpc.BlockLevel) (PRBalanceUpdates, error) {
@@ -494,7 +497,7 @@ func (engine *rpcCollector) getBlockBalanceUpdates(ctx context.Context, state *c
 					continue
 				}
 
-				allBalanceUpdates = allBalanceUpdates.Add(makeBurnBalanceUpdatesLast(lo.Map(content.Result().BalanceUpdates, func(bu rpc.BalanceUpdate, _ int) PRBalanceUpdate {
+				allBalanceUpdates = allBalanceUpdates.Add(makeBurnAndStakeBalanceUpdatesLast(lo.Map(content.Result().BalanceUpdates, func(bu rpc.BalanceUpdate, _ int) PRBalanceUpdate {
 					return PRBalanceUpdate{
 						Address:   bu.Address(),
 						Amount:    bu.Amount(),
@@ -531,7 +534,7 @@ func (engine *rpcCollector) getBlockBalanceUpdates(ctx context.Context, state *c
 						// no other updates nor internal results for delegation
 						continue
 					}
-					allBalanceUpdates = allBalanceUpdates.Add(makeBurnBalanceUpdatesLast(lo.Map(internalResult.Result.BalanceUpdates, func(bu rpc.BalanceUpdate, _ int) PRBalanceUpdate {
+					allBalanceUpdates = allBalanceUpdates.Add(makeBurnAndStakeBalanceUpdatesLast(lo.Map(internalResult.Result.BalanceUpdates, func(bu rpc.BalanceUpdate, _ int) PRBalanceUpdate {
 						return PRBalanceUpdate{
 							Address:       bu.Address(),
 							Amount:        bu.Amount(),
