@@ -100,17 +100,27 @@ func (s *Store) Statistics(cycle int64) (*common.CycleStatistics, error) {
 	}
 
 	for _, state := range states {
-		staked := int64(0)
-		delegated := int64(0)
+		ownStaked := int64(0)
+		ownDelegated := int64(0)
+		externalStaked := int64(0)
+		externalDelegated := int64(0)
 
-		for _, balances := range state.Balances {
-			staked += balances.StakedBalance
-			delegated += balances.DelegatedBalance
+		for addr, balances := range state.Balances {
+			switch {
+			case addr.Equal(state.Delegate.Address):
+				ownDelegated += balances.DelegatedBalance
+				ownStaked += balances.StakedBalance
+			default:
+				externalStaked += balances.StakedBalance
+				externalDelegated += balances.DelegatedBalance
+			}
 		}
 
 		result.Delegates[state.Delegate.Address] = common.DelegateCycleStatistics{
-			Staked:    staked,
-			Delegated: delegated,
+			OwnStaked:         ownStaked,
+			OwnDelegated:      ownDelegated,
+			ExternalStaked:    externalStaked,
+			ExternalDelegated: externalDelegated,
 		}
 	}
 

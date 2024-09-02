@@ -3,8 +3,10 @@ package common
 import "github.com/trilitech/tzgo/tezos"
 
 type DelegateCycleStatistics struct {
-	Staked    int64 `json:"staked"`
-	Delegated int64 `json:"delegated"`
+	ExternalStaked    int64 `json:"external_staked"`
+	OwnStaked         int64 `json:"own_staked"`
+	ExternalDelegated int64 `json:"external_delegated"`
+	OwnDelegated      int64 `json:"own_delegated"`
 }
 
 type CycleStatistics struct {
