@@ -113,6 +113,16 @@ func (engine *rpcCollector) getContractStakedBalance(ctx context.Context, addr t
 	})
 }
 
+func (engine *rpcCollector) getContractBalanceAndBonds(ctx context.Context, addr tezos.Address, id rpc.BlockID) (tezos.Z, error) {
+	u := fmt.Sprintf("chains/main/blocks/%s/context/contracts/%s/balance_and_frozen_bonds", id, addr)
+
+	return attemptWithClients(engine.rpcs, func(client *rpc.Client) (tezos.Z, error) {
+		var bal tezos.Z
+		err := client.Get(ctx, u, &bal)
+		return bal, err
+	})
+}
+
 func (engine *rpcCollector) getContractUnstakeRequests(ctx context.Context, addr tezos.Address, id rpc.BlockID) (common.UnstakeRequests, error) {
 	// chains/main/blocks/5896790/context/contracts/tz1epK8fDnc8tUeK6dNwTjiHqrGzX586ozyt/unstake_requests
 	u := fmt.Sprintf("chains/main/blocks/%s/context/contracts/%s/unstake_requests", id, addr)
@@ -229,9 +239,7 @@ func (engine *rpcCollector) GetDelegateFromCycle(ctx context.Context, lastBlockI
 func (engine *rpcCollector) fetchContractInitialBalanceInfo(ctx context.Context, address tezos.Address, baker tezos.Address, blockWithMinimumId rpc.BlockID, lastBlockInCycle rpc.BlockID) (*common.DelegationStateBalanceInfo, error) {
 	blockBeforeMinimumId := rpc.NewBlockOffset(blockWithMinimumId, -1)
 
-	balance, err := attemptWithClients(engine.rpcs, func(client *rpc.Client) (tezos.Z, error) {
-		return client.GetContractBalance(ctx, address, blockBeforeMinimumId)
-	})
+	balance, err := engine.getContractBalanceAndBonds(ctx, address, blockBeforeMinimumId)
 	if err != nil {
 		if httpStatus, ok := err.(rpc.HTTPStatus); ok && httpStatus.StatusCode() == http.StatusNotFound {
 			return &common.DelegationStateBalanceInfo{}, nil
@@ -351,9 +359,7 @@ func (engine *rpcCollector) fetchInitialDelegationState(ctx context.Context, del
 	}
 	delegateDelegatedContracts = lo.Uniq(append(delegateDelegatedContracts, delegateDelegatedContractsAtTheEndOfCycle...))
 
-	balance, err := attemptWithClients(engine.rpcs, func(client *rpc.Client) (tezos.Z, error) {
-		return client.GetContractBalance(ctx, delegate.Delegate, blockBeforeMinimumId)
-	})
+	balance, err := engine.getContractBalanceAndBonds(ctx, delegate.Delegate, blockBeforeMinimumId)
 	if err != nil {
 		return nil, errors.Join(constants.ErrFailedToFetchContract, err)
 	}
