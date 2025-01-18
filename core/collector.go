@@ -615,6 +615,7 @@ func (engine *rpcCollector) GetDelegationState(ctx context.Context, delegate *rp
 		return nil, err
 	}
 
+	slog.Debug("initial state", "delegate", delegate.Delegate.String(), "delegated_balance", state.GetDelegatedBalance(), "target_amount", targetAmount, "diff", state.GetDelegatedBalance()-targetAmount)
 	// we may match at the beginning of the block, we do not have to further process
 	if abs(state.GetDelegatedBalance()-targetAmount) <= constants.MINIMUM_DIFF_TOLERANCE {
 		state.CreatedAt = common.DelegationStateCreationInfo{

@@ -9,7 +9,7 @@ require (
 	github.com/pierrec/lz4/v4 v4.1.22
 	github.com/samber/lo v1.47.0
 	github.com/stretchr/testify v1.9.0
-	github.com/trilitech/tzgo v1.19.9
+	github.com/trilitech/tzgo v1.19.10-0.20250113173836-93746c2fdc30
 	gorm.io/driver/postgres v1.5.11
 	gorm.io/gorm v1.25.12
 )

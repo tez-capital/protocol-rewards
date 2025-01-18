@@ -103,6 +103,8 @@ github.com/trilitech/tzgo v1.19.7-0.20240615084153-32cae2559148 h1:3IAI5Ora7g8Sr
 github.com/trilitech/tzgo v1.19.7-0.20240615084153-32cae2559148/go.mod h1:YU8inIqQeOmGKAs4+t/l6aQ1SYWom1SMb3mpRnHj/MM=
 github.com/trilitech/tzgo v1.19.9 h1:JhkArk+nNFWNW1IIlwWZpRhwXdIaEVEdvgsO7PQdr5Y=
 github.com/trilitech/tzgo v1.19.9/go.mod h1:YU8inIqQeOmGKAs4+t/l6aQ1SYWom1SMb3mpRnHj/MM=
+github.com/trilitech/tzgo v1.19.10-0.20250113173836-93746c2fdc30 h1:P6WUUNRKDDFBbCso31vJy/89FKb5ZfuF7auSwFht+9c=
+github.com/trilitech/tzgo v1.19.10-0.20250113173836-93746c2fdc30/go.mod h1:YU8inIqQeOmGKAs4+t/l6aQ1SYWom1SMb3mpRnHj/MM=
 github.com/valyala/bytebufferpool v1.0.0 h1:GqA5TC/0021Y/b9FG4Oi9Mr3q7XYx6KllzawFIhcdPw=
 github.com/valyala/bytebufferpool v1.0.0/go.mod h1:6bBcMArwyJ5K/AmCkWv1jt77kVWyCJ6HpOuEn7z0Csc=
 github.com/valyala/fasthttp v1.55.0 h1:Zkefzgt6a7+bVKHnu/YaYSOPfNYNisSVBo/unVCf8k8=
