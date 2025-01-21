@@ -205,6 +205,19 @@ func (engine *rpcCollector) GetLastCompletedCycle(ctx context.Context) (cycle in
 	return previousCycle, lastBlockInPreviousCycle, err
 }
 
+func (engine *rpcCollector) GetLastBlockOffset(ctx context.Context, cycle int64) int64 {
+	offset, _ := attemptWithClients(engine.rpcs, func(client *rpc.Client) (int64, error) {
+		switch {
+		case client.ChainId == tezos.Mainnet && cycle == 822:
+			return -1, nil
+		case client.ChainId == tezos.Ghostnet && cycle == 1342:
+			return -1, nil
+		}
+		return 0, nil
+	})
+	return offset
+}
+
 func (engine *rpcCollector) GetCycleBakingPowerOrigin(ctx context.Context, cycle int64) (originCycle int64) {
 	consensusDelay, _ := attemptWithClients(engine.rpcs, func(client *rpc.Client) (int64, error) {
 		return client.Params.ConsensusRightsDelay, nil

@@ -148,6 +148,8 @@ func (e *Engine) FetchDelegateDelegationState(ctx context.Context, delegateAddre
 		lastBlockInTheCycle = e.collector.determineLastBlockOfCycle(cycle)
 	}
 
+	lastBlockInTheCycle = lastBlockInTheCycle + e.collector.GetLastBlockOffset(ctx, cycle)
+
 	if err := e.fetchDelegateDelegationStateInternal(ctx, delegateAddress, cycle, lastBlockInTheCycle, options); err != nil {
 		e.logger.Error("failed to fetch delegate delegation state", "cycle", cycle, "delegate", delegateAddress.String(), "error", err.Error())
 		return err
