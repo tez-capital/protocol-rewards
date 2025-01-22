@@ -2,3 +2,5 @@
 /config.*.hjson
 tezwatch.tar
 .env
+/data/*
+!/data/*.gob.lz4

@@ -115,10 +115,15 @@ func (engine *rpcCollector) getContractStakedBalance(ctx context.Context, addr t
 
 func (engine *rpcCollector) getContractBalanceAndBonds(ctx context.Context, addr tezos.Address, id rpc.BlockID) (tezos.Z, error) {
 	u := fmt.Sprintf("chains/main/blocks/%s/context/contracts/%s/balance_and_frozen_bonds", id, addr)
+	balance_url := fmt.Sprintf("chains/main/blocks/%s/context/contracts/%s/balance", id, addr)
 
 	return attemptWithClients(engine.rpcs, func(client *rpc.Client) (tezos.Z, error) {
 		var bal tezos.Z
 		err := client.Get(ctx, u, &bal)
+
+		if err != nil && strings.Contains(err.Error(), "storage_error") {
+			err = client.Get(ctx, balance_url, &bal)
+		}
 		return bal, err
 	})
 }
