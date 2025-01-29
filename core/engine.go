@@ -108,7 +108,9 @@ func (e *Engine) fetchDelegateDelegationStateInternal(ctx context.Context, deleg
 	e.state.AddDelegateBeingFetched(cycle, delegateAddress)
 	defer e.state.RemoveCycleBeingFetched(cycle, delegateAddress)
 
-	delegate, err := e.collector.GetDelegateFromCycle(ctx, lastBlockInTheCycleId, delegateAddress)
+	offset := e.collector.GetLastBlockOffset(ctx, cycle)
+
+	delegate, err := e.collector.GetDelegateFromCycle(ctx, rpc.NewBlockOffset(lastBlockInTheCycleId, offset), delegateAddress)
 	if err != nil {
 		e.logger.Debug("failed to get delegate from", "cycle", cycle, "delegateAddress", delegateAddress, "error", err)
 		return err
@@ -147,8 +149,6 @@ func (e *Engine) FetchDelegateDelegationState(ctx context.Context, delegateAddre
 	if lastBlockInTheCycle == 0 {
 		lastBlockInTheCycle = e.collector.determineLastBlockOfCycle(cycle)
 	}
-
-	lastBlockInTheCycle = lastBlockInTheCycle + e.collector.GetLastBlockOffset(ctx, cycle)
 
 	if err := e.fetchDelegateDelegationStateInternal(ctx, delegateAddress, cycle, lastBlockInTheCycle, options); err != nil {
 		e.logger.Error("failed to fetch delegate delegation state", "cycle", cycle, "delegate", delegateAddress.String(), "error", err.Error())
@@ -191,8 +191,6 @@ func (e *Engine) FetchCycleDelegationStates(ctx context.Context, cycle, lastBloc
 	if lastBlockInTheCycle == 0 {
 		lastBlockInTheCycle = e.collector.determineLastBlockOfCycle(cycle)
 	}
-
-	lastBlockInTheCycle = lastBlockInTheCycle + e.collector.GetLastBlockOffset(ctx, cycle)
 
 	delegates, err := e.getDelegates(ctx, lastBlockInTheCycle)
 	if err != nil {
