@@ -618,6 +618,11 @@ func (engine *rpcCollector) GetDelegationState(ctx context.Context, delegate *rp
 	blockLevelWithMinimumBalance := rpc.BlockLevel(delegate.MinDelegated.Level.Level)
 	targetAmount := delegate.MinDelegated.Amount
 
+	// fast path - since Quebec we check situation at the end of the block
+	if cycle >= 823 { // Q or newer
+		blockLevelWithMinimumBalance = blockLevelWithMinimumBalance + 1
+	}
+
 	if blockLevelWithMinimumBalance == 0 {
 		slog.Debug("fetching delegation state - no minimum, taking last block balances", "blockLevelWithMinimumBalance", lastBlockInTheCycle, "delegate", delegate.Delegate.String())
 		state, err := engine.fetchInitialDelegationState(ctx, delegate, cycle, lastBlockInTheCycle, lastBlockInTheCycle)
@@ -641,6 +646,9 @@ func (engine *rpcCollector) GetDelegationState(ctx context.Context, delegate *rp
 			Kind:  common.CreatedAtBlockBeginning,
 		}
 		return state, nil
+	} else if cycle >= 823 { // Q or newer
+		// we did not match at the beginning of the block next block - fail
+		return nil, constants.ErrMinimumDelegatedBalanceNotFound
 	}
 
 	allBalanceUpdates, err := engine.getBlockBalanceUpdates(ctx, state, blockLevelWithMinimumBalance)
