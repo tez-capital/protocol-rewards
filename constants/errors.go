@@ -3,8 +3,12 @@ package constants
 import "errors"
 
 var (
-	ErrNotFound          = errors.New("not found")
-	ErrCycleDidNotEndYet = errors.New("cycle did not end yet")
+	ErrNotFound                        = errors.New("not found")
+	ErrCycleDidNotEndYet               = errors.New("cycle did not end yet")
+	ErrFailedToFetchCycleEndHeight     = errors.New("failed to fetch cycle end height")
+	ErrFailedToFetchBlockAtHeightLevel = errors.New("failed to fetch block at height level")
+	ErrFailedToFetchNextBlock          = errors.New("failed to fetch next block")
+	ErrLastBlockOfCycleMismatch        = errors.New("last block of cycle mismatch")
 
 	ErrDelegateHasNoMinimumDelegatedBalance = errors.New("delegate has no minimum delegated balance")
 

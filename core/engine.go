@@ -147,7 +147,13 @@ func (e *Engine) FetchDelegateDelegationState(ctx context.Context, delegateAddre
 	}
 
 	if lastBlockInTheCycle == 0 {
-		lastBlockInTheCycle = e.collector.determineLastBlockOfCycle(cycle)
+		var err error
+		lastBlockInTheCycle, err = e.collector.determineLastBlockOfCycle(cycle)
+		if err != nil {
+			e.logger.Error("failed to determine last block of cycle", "cycle", cycle, "error", err)
+			notifications.Notify(e.notificator, fmt.Sprintf("Failed to determine last block of cycle %d: %s", cycle, err))
+			return err
+		}
 	}
 
 	if err := e.fetchDelegateDelegationStateInternal(ctx, delegateAddress, cycle, lastBlockInTheCycle, options); err != nil {
@@ -189,7 +195,13 @@ func (e *Engine) FetchCycleDelegationStates(ctx context.Context, cycle, lastBloc
 	}
 
 	if lastBlockInTheCycle == 0 {
-		lastBlockInTheCycle = e.collector.determineLastBlockOfCycle(cycle)
+		var err error
+		lastBlockInTheCycle, err = e.collector.determineLastBlockOfCycle(cycle)
+		if err != nil {
+			e.logger.Error("failed to determine last block of cycle", "cycle", cycle, "error", err)
+			notifications.Notify(e.notificator, fmt.Sprintf("Failed to determine last block of cycle %d: %s", cycle, err))
+			return err
+		}
 	}
 
 	delegates, err := e.getDelegates(ctx, lastBlockInTheCycle)

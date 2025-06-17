@@ -233,12 +233,41 @@ func (engine *rpcCollector) GetCycleBakingPowerOrigin(ctx context.Context, cycle
 	return cycle - 1 - consensusDelay
 }
 
-func (engine *rpcCollector) determineLastBlockOfCycle(cycle int64) int64 {
-	height, _ := attemptWithClients(engine.rpcs, func(client *rpc.Client) (int64, error) {
+func (engine *rpcCollector) determineLastBlockOfCycle(cycle int64) (int64, error) {
+	height, err := attemptWithClients(engine.rpcs, func(client *rpc.Client) (int64, error) {
 		return client.Params.CycleEndHeight(cycle), nil
 	})
 
-	return height
+	if err != nil {
+		slog.Error("failed to fetch cycle end height", "error", err)
+		return 0, constants.ErrFailedToFetchCycleEndHeight
+	}
+
+	blockAtHeight, err := attemptWithClients(engine.rpcs, func(client *rpc.Client) (*rpc.Block, error) {
+		return client.GetBlock(context.Background(), rpc.BlockLevel(height))
+	})
+	if err != nil {
+		slog.Error("failed to fetch block at level", "height", height, "error", err)
+		return 0, constants.ErrFailedToFetchBlockAtHeightLevel
+	}
+
+	blockNext, err := attemptWithClients(engine.rpcs, func(client *rpc.Client) (*rpc.Block, error) {
+		return client.GetBlock(context.Background(), rpc.BlockLevel(height+1))
+	})
+	if err != nil {
+		slog.Error("failed to fetch block at level", "height", height+1, "error", err)
+		return 0, constants.ErrFailedToFetchNextBlock
+	}
+
+	cycleAtHeight := blockAtHeight.GetLevelInfo().Cycle
+	cycleAtNext := blockNext.GetLevelInfo().Cycle
+
+	if cycleAtNext != cycleAtHeight+1 {
+		slog.Error("cycle mismatch: block is not end of cycle", "height", height, "cycle", cycle)
+		return 0, fmt.Errorf("cycle mismatch: block %d is not end of cycle %d", height, cycle)
+	}
+
+	return height, nil
 }
 
 func (engine *rpcCollector) GetActiveDelegatesFromCycle(ctx context.Context, lastBlockInTheCycle rpc.BlockID) (rpc.DelegateList, error) {
