@@ -34,6 +34,8 @@ func (j *DelegationStateBalances) Scan(src interface{}) error {
 	return json.Unmarshal(source, j)
 }
 
+type SignalPowers map[tezos.Address]int64
+
 type Address struct {
 	tezos.Address
 }
@@ -121,6 +123,14 @@ func (s *StoredDelegationState) ToTzktState() *TzktLikeDelegationState {
 		ExternalStakedBalance:    externalBalances.StakedBalance,
 		DelegatorsCount:          len(delegators),
 		Delegators:               delegators,
+	}
+	return result
+}
+
+func (s *StoredDelegationState) ToSignalPowers() SignalPowers {
+	result := make(SignalPowers)
+	for addr, balances := range s.Balances {
+		result[addr] = balances.DelegatedBalance + balances.StakedBalance
 	}
 	return result
 }

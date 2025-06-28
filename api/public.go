@@ -47,6 +47,38 @@ func registerGetDelegationState(app *fiber.App, engine *core.Engine) {
 	})
 }
 
+func registerGetSignalPowers(app *fiber.App, engine *core.Engine) {
+	app.Get("/delegate/:cycle/:address/signal-powers", func(c *fiber.Ctx) error {
+		cycle, err := strconv.ParseInt(c.Params("cycle"), 10, 64)
+		if err != nil {
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+				"error": err.Error(),
+			})
+		}
+
+		address, err := tezos.ParseAddress(c.Params("address"))
+		if err != nil {
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+				"error": err.Error(),
+			})
+		}
+
+		state, err := engine.GetDelegationState(c.Context(), address, cycle)
+		if err != nil {
+			if errors.Is(err, constants.ErrNotFound) {
+				return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
+					"error": "Delegation state not found",
+				})
+			}
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+				"error": err.Error(),
+			})
+		}
+
+		return c.JSON(state.ToSignalPowers())
+	})
+}
+
 func registerIsDelegationStateAvailable(app *fiber.App, engine *core.Engine) {
 	app.Get("/delegate/:cycle/:address/available", func(c *fiber.Ctx) error {
 		cycle, err := strconv.ParseInt(c.Params("cycle"), 10, 64)
@@ -145,6 +177,7 @@ func CreatePublicApi(config *configuration.Runtime, engine *core.Engine) *fiber.
 	registerIsDelegationStateAvailable(app, engine)
 	registerRewardsSplitMirror(app, engine)
 	registerStatistics(app, engine)
+	registerGetSignalPowers(app, engine)
 
 	go func() {
 		err := app.Listen(config.Listen)
